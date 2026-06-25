@@ -146,3 +146,17 @@ Commands:
 
 Known guard interaction: a literal nested cgrun command name inside a cgrun payload can trigger the recursive guard with rc=12 before latest.log is updated. For diagnostics, use a script file or construct command names at runtime.
 <!-- AUTOCLIP_V933_TOOLBOX_README_END -->
+
+<!-- AUTOCLIP_V934_TOOLBOX_README_START -->
+## AutoClip v9.3.4 stale-tail guard
+
+v9.3.4-rc12-stale-tail-fix is the Pixel/Termux runtime guard layer above the v9.3 auto dynamic cgtail core. It keeps the normal cgrun -> cgtail clipboard flow unchanged.
+
+Behavior: if the real cgrun exits nonzero before latest.log changes, the wrapper writes a fresh .chatgpt-output/cgrun_guard_*.log, points latest.log at it, and runs dynamic cgtail against that guard log. This prevents the Android clipboard from receiving stale output from the previous successful run.
+
+Verify markers:
+- autoclip-status shows version=v9.3.4-rc12-stale-tail-fix
+- rc12_stale_latest_guard=enabled
+- guard logs contain CGRUN_STALE_LATEST_GUARD_LOG_DONE
+- autoclip-doctor remains PASS
+<!-- AUTOCLIP_V934_TOOLBOX_README_END -->
