@@ -133,3 +133,16 @@ Do not automatically sync private overlays, logs, backups, or host-specific note
 ## License
 
 See `LICENSE`.
+
+<!-- AUTOCLIP_V933_TOOLBOX_README_START -->
+## AutoClip v9.3.3 polish helpers
+
+This toolbox documents the local Pixel/Termux helper layer for the Heimnetz ChatGPT copy-window workflow. The core runtime contract remains v9.3-auto-dynamic-cgtail; v9.3.3 adds helper commands only.
+
+Commands:
+- autoclip-doctor: checks command paths, wrappers, shell state, latest.log, and clean cgtail handoff link.
+- cgarchive: manual archive helper for old cgrun logs; run dry-run before apply.
+- cgrun-noclip: no-clipboard wrapper for private/sensitive runs.
+
+Known guard interaction: a literal nested cgrun command name inside a cgrun payload can trigger the recursive guard with rc=12 before latest.log is updated. For diagnostics, use a script file or construct command names at runtime.
+<!-- AUTOCLIP_V933_TOOLBOX_README_END -->
