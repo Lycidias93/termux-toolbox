@@ -41,8 +41,11 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git diff --check
 fi
 
+# Exclude known policy/tooling files that intentionally contain forbidden-pattern definitions.
 if grep -RInE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9_]+|github_pat_|AKIA[0-9A-Z]{16}|client_secret|refresh_token|access_token|password=|token=)' . \
-  --exclude-dir=.git --exclude='verify-termux-toolbox.sh' >"$SECRET_SCAN_FILE" 2>/dev/null; then
+  --exclude-dir=.git \
+  --exclude='verify-termux-toolbox.sh' \
+  --exclude='review-termux-public-safety.sh' >"$SECRET_SCAN_FILE" 2>/dev/null; then
   cat "$SECRET_SCAN_FILE"
   echo "FAIL secret_guard"
   exit 1
