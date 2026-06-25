@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# AUTOCLIP_V93_CGTAIL_BIN_WRAPPER
+set -euo pipefail
+exec "${PREFIX:-/data/data/com.termux/files/usr}/bin/cgtail-autoclip-v93" "$@"

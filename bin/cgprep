@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf "%s\n" "== copy window =="
+printf "%s\n" "Istblick Wurzelklar Workflowfit NoHeredoc Copyfit CgRunLog DynamicTail Dropvoll Verifygate Rollbackanker Hostblick Routeguard Geheimnull Geheimort Diffsauber Resultmarker Pushmerge"
+echo

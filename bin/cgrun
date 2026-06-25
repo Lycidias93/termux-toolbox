@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# AUTOCLIP_V93_CGRUN_AUTO_TAIL_BIN_WRAPPER
+set -uo pipefail
+PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
+REAL="$PREFIX_DIR/bin/cgrun.autoclip-v93-real"
+TAIL_LINES="${CGRUN_AUTO_TAIL_LINES:-dynamic}"
+AUTO_TAIL="${CGRUN_AUTO_TAIL:-1}"
+STRICT="${CGRUN_AUTO_TAIL_STRICT:-0}"
+if [ ! -x "$REAL" ]; then
+  echo "FAIL cgrun real binary missing: $REAL" >&2
+  echo "RESULT: CGRUN_WRAPPER_FAIL rc=127" >&2
+  exit 127
+fi
+set +e
+"$REAL" "$@"
+rc=$?
+if [ "$AUTO_TAIL" = "1" ]; then
+  echo
+  echo "== cgrun auto dynamic cgtail =="
+  date '+%Y-%m-%dT%H:%M:%S%z'
+  echo "version=v9.3-auto-dynamic-cgtail"
+  echo "original_cgrun_rc=$rc"
+  echo "tail_lines=$TAIL_LINES"
+  echo "note=auto dynamic cgtail after every cgrun; clipboard should contain this tail"
+  "$PREFIX_DIR/bin/cgtail-autoclip-v93" "$TAIL_LINES"
+  tail_rc=$?
+  echo "RESULT: CGRUN_AUTO_TAIL_DONE rc=$tail_rc original_cgrun_rc=$rc"
+  if [ "$rc" -eq 0 ] && [ "$tail_rc" -ne 0 ] && [ "$STRICT" = "1" ]; then
+    exit "$tail_rc"
+  fi
+fi
+exit "$rc"

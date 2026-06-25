@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+OUT="${CHATGPT_OUTPUT_DIR:-$HOME/.chatgpt-output}"
+MODE="${1:---dry-run}"
+KEEP="${2:-80}"
+if [ "$MODE" != "--dry-run" ] && [ "$MODE" != "--apply" ]; then KEEP="$MODE"; MODE="--dry-run"; fi
+case "$KEEP" in ""|*[!0123456789]*) echo "ERROR: keep must be numeric"; echo "RESULT: CGCLEAN_FAIL rc=2"; exit 2;; esac
+if [ "$KEEP" -lt 1 ]; then echo "ERROR: keep must be >=1"; echo "RESULT: CGCLEAN_FAIL rc=2"; exit 2; fi
+mkdir -p "$OUT"
+RUN_ID="cgclean_$(date +%Y%m%d_%H%M%S)"
+ALL="$OUT/.${RUN_ID}_all.txt"
+DELETE="$OUT/.${RUN_ID}_delete.txt"
+trap "rm -f \"$ALL\" \"$DELETE\"" EXIT INT TERM
+echo "== cgclean =="
+date -Is
+echo "out=$OUT"
+echo "mode=$MODE"
+echo "keep=$KEEP"
+LATEST="$OUT/latest.log"
+LATEST_TARGET=""
+if [ -e "$LATEST" ] || [ -L "$LATEST" ]; then LATEST_TARGET="$(readlink -f "$LATEST" 2>/dev/null || true)"; fi
+echo "latest=$LATEST"
+echo "latest_target=$LATEST_TARGET"
+find "$OUT" -maxdepth 1 -type f -name "cgrun_*.log" 2>/dev/null | sort > "$ALL"
+COUNT="$(wc -l < "$ALL" | tr -d " ")"
+echo "count_before=$COUNT"
+if [ "$COUNT" -le "$KEEP" ]; then
+  echo "delete_count=0"
+  echo "RESULT: CGCLEAN_DONE rc=0"
+  exit 0
+fi
+DELETE_TARGET=$((COUNT - KEEP))
+echo "delete_target=$DELETE_TARGET"
+: > "$DELETE"
+n=0
+while IFS= read -r f; do
+  n=$((n+1))
+  if [ "$n" -le "$DELETE_TARGET" ]; then
+    if [ -n "$LATEST_TARGET" ] && [ "$f" = "$LATEST_TARGET" ]; then
+      echo "skip_latest_target=$f"
+    else
+      printf "%s\n" "$f" >> "$DELETE"
+    fi
+  fi
+done < "$ALL"
+DELETE_COUNT="$(wc -l < "$DELETE" | tr -d " ")"
+echo "delete_count=$DELETE_COUNT"
+if [ "$DELETE_COUNT" -gt 0 ]; then
+  echo "oldest_delete_sample_begin"
+  sed -n "1,10p" "$DELETE"
+  echo "oldest_delete_sample_end"
+fi
+if [ "$MODE" = "--apply" ]; then
+  while IFS= read -r f; do
+    case "$f" in "$OUT"/cgrun_*.log) rm -f -- "$f";; *) echo "skip_unexpected_path=$f";; esac
+  done < "$DELETE"
+  find "$OUT" -maxdepth 1 -type f -name "cgrun_*.log" 2>/dev/null | sort > "$ALL"
+  COUNT_AFTER="$(wc -l < "$ALL" | tr -d " ")"
+  echo "count_after=$COUNT_AFTER"
+else
+  echo "dry_run_only=yes"
+fi
+if [ -e "$LATEST" ] || [ -L "$LATEST" ]; then
+  NEW_TARGET="$(readlink -f "$LATEST" 2>/dev/null || true)"
+  echo "latest_target_after=$NEW_TARGET"
+  if [ -n "$NEW_TARGET" ] && [ ! -f "$NEW_TARGET" ]; then echo "latest_target_missing_after=yes"; echo "RESULT: CGCLEAN_FAIL rc=1"; exit 1; fi
+fi
+echo "RESULT: CGCLEAN_DONE rc=0"

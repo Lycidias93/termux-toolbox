@@ -1,0 +1,9 @@
+git
+gh
+bash
+coreutils
+findutils
+grep
+sed
+awk
+procps
