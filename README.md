@@ -118,3 +118,14 @@ The repo intentionally contains public safety policy text and scanning tools. Th
 ## License
 
 See `LICENSE`.
+
+<!-- TERMUX_TOOLBOX_DOCS_INDEX_BEGIN -->
+## Documentation map
+
+- [Termux setup baseline](docs/termux-setup.md)
+- [Termux:API integration](docs/termux-api.md)
+- [Clipboard and notifications workflow](docs/clipboard-and-notifications.md)
+- [Restore on a new Termux device](docs/restore-new-device.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Termux package baseline](docs/reference/termux-package-baseline.md)
+<!-- TERMUX_TOOLBOX_DOCS_INDEX_END -->

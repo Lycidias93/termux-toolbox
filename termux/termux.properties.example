@@ -1,4 +1,6 @@
 # Public-safe Termux properties example
-# Generated from a local snapshot using an allowlist. Review before applying.
+# Copy to ~/.termux/termux.properties and adjust locally.
 
 terminal-transcript-rows = 100
+bell-character = ignore
+use-black-ui = true
