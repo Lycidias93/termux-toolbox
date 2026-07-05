@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+base_dir="${1:-${HOME}/src}"
+fail=0
+say() { printf '%s\n' "$*"; }
+err() { printf 'FAIL: %s\n' "$*" >&2; fail=1; }
+pass() { printf 'PASS: %s\n' "$*"; }
+
+repos=(
+  audio-safe-volume-battery-aware
+  pixel-10-pro-xl-thermal-fix
+  Sortify-Dispatch
+  asvd-bt-type-helper
+  ssh-drop-dispatcher
+  termux-toolbox
+  UnlimitedOnDemand_Auto_Reply
+  plants-home-inventory
+  module-reflash-trigger
+  magisk-boot-watch
+  pi3-ops
+  heimnetz-geraete
+)
+
+check_lf() {
+  local p="$1"
+  if [[ ! -f "$p" ]]; then
+    err "missing $p"
+    return
+  fi
+  if LC_ALL=C grep -q $'\r' "$p"; then
+    err "crlf_present $p"
+  else
+    pass "lf_only $p"
+  fi
+}
+
+check_script() {
+  local p="$1"
+  if [[ ! -s "$p" ]]; then
+    err "missing_or_empty $p"
+    return
+  fi
+  check_lf "$p"
+  local first
+  first="$(sed -n '1p' "$p")"
+  if [[ "$first" == '#!/usr/bin/env bash' ]]; then
+    pass "shebang_ok $p"
+  else
+    err "shebang_wrong $p"
+  fi
+  if [[ -x "$p" ]]; then
+    pass "executable $p"
+  else
+    err "not_executable $p"
+  fi
+  if bash -n "$p"; then
+    pass "bash_syntax $p"
+  else
+    err "bash_syntax $p"
+  fi
+  local lt='<'; local hd="${lt}${lt}"; local hs="${lt}${lt}${lt}"
+  if LC_ALL=C grep -Fq "$hd" "$p" || LC_ALL=C grep -Fq "$hs" "$p"; then
+    err "heredoc_or_herestring_present $p"
+  else
+    pass "no_heredoc_herestring $p"
+  fi
+}
+
+say '== cross repo workflow audit =='
+say "time=$(date -Is)"
+say "base_dir=$base_dir"
+
+for repo in "${repos[@]}"; do
+  dir="$base_dir/$repo"
+  say
+  say "== repo $repo =="
+  if [[ ! -d "$dir/.git" ]]; then
+    err "repo_missing_or_not_git $dir"
+    continue
+  fi
+  if [[ "$repo" == 'termux-toolbox' ]]; then
+    for p in WORKFLOW_TOOLBOX.md tools/chatctx tools/cgflow tools/workflow-guard.sh tools/secret-guard.sh tools/route-change-guard.sh tools/host-artifact-name-guard.sh tools/assistant-output-guard.sh tools/cross-repo-workflow-audit tools/cross-repo-workflow-sync templates/state_gate.md context-packs/repo_maintenance.md context-packs/generic_repo.md task-cards/repo_update.md task-cards/workflow_baseline.md; do
+      if [[ "$p" == tools/* ]]; then
+        check_script "$dir/$p"
+      else
+        check_lf "$dir/$p"
+      fi
+    done
+  else
+    check_script "$dir/tools/chatctx"
+    check_script "$dir/tools/cgflow"
+    check_lf "$dir/WORKFLOW_BASELINE.md"
+    check_lf "$dir/.workflow-baseline"
+  fi
+  if git -C "$dir" diff --check; then
+    pass "git_diff_check $repo"
+  else
+    err "git_diff_check $repo"
+  fi
+done
+
+if [[ "$fail" -ne 0 ]]; then
+  say 'RESULT: CROSS_REPO_WORKFLOW_AUDIT_FAIL rc=1'
+  exit 1
+fi
+say 'RESULT: CROSS_REPO_WORKFLOW_AUDIT_PASS rc=0'

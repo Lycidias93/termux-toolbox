@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+toolbox_root="$(cd "$script_dir/.." && pwd -P)"
+package_root="${1:-}"
+mode="${2:-audit}"
+
+if [[ -z "$package_root" ]]; then
+  printf '%s\n' 'Usage: tools/cross-repo-workflow-sync <package-root> <audit|stage|commit|push>' >&2
+  exit 2
+fi
+
+python3 "$package_root/scripts/apply_cross_repo_workflow_baseline.py" --src "$package_root" --repos-root "${HOME}/src" --mode "$mode"

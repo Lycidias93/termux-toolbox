@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+
+scope="${1:-repo}"
+case "${scope,,}" in
+  --list|-l)
+    printf '%s\n' repo generic workflow-baseline
+    printf '%s\n' 'RESULT: CHATCTX_LIST_DONE rc=0'
+    exit 0
+    ;;
+  repo|repo-maintenance|maintenance)
+    pack="context-packs/repo_maintenance.md"
+    card="task-cards/repo_update.md"
+    ;;
+  generic|generic-repo)
+    pack="context-packs/generic_repo.md"
+    card="task-cards/repo_update.md"
+    ;;
+  workflow|workflow-baseline|baseline)
+    pack="context-packs/generic_repo.md"
+    card="task-cards/workflow_baseline.md"
+    ;;
+  *)
+    printf 'ERROR: unknown scope: %s\n' "$scope" >&2
+    printf '%s\n' 'Scopes: repo, generic, workflow-baseline' >&2
+    exit 2
+    ;;
+esac
+
+need_file() {
+  local p="$1"
+  if [[ ! -s "$p" ]]; then
+    printf 'ERROR: missing_or_empty %s\n' "$p" >&2
+    exit 3
+  fi
+}
+
+# Prefer local repo files; fall back to central toolbox root.
+toolbox_root="${WORKFLOW_TOOLBOX_ROOT:-}"
+if [[ -z "$toolbox_root" ]]; then
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  toolbox_root="$(cd "$script_dir/.." && pwd -P)"
+fi
+
+resolve_file() {
+  local rel="$1"
+  if [[ -s "$repo_root/$rel" ]]; then
+    printf '%s\n' "$repo_root/$rel"
+  elif [[ -s "$toolbox_root/$rel" ]]; then
+    printf '%s\n' "$toolbox_root/$rel"
+  else
+    printf '%s\n' "$repo_root/$rel"
+  fi
+}
+
+pack_path="$(resolve_file "$pack")"
+card_path="$(resolve_file "$card")"
+template_path="$(resolve_file templates/state_gate.md)"
+need_file "$pack_path"
+need_file "$card_path"
+need_file "$template_path"
+
+printf '%s\n' 'STATE-GATE INPUT'
+printf 'generated_at=%s\n' "$(date -Is)"
+printf 'repo_root=%s\n' "$repo_root"
+printf 'toolbox_root=%s\n' "$toolbox_root"
+printf 'scope=%s\n' "$scope"
+printf '\n'
+
+printf '%s\n' '== git =='
+git branch --show-current 2>/dev/null | sed 's/^/branch=/' || true
+git log -1 --oneline 2>/dev/null | sed 's/^/head=/' || true
+git status --short 2>/dev/null | sed 's/^/status=/' || true
+printf '\n'
+
+printf '== context pack: %s ==\n' "$pack"
+sed -n '1,220p' "$pack_path"
+printf '\n'
+
+printf '== task card: %s ==\n' "$card"
+sed -n '1,220p' "$card_path"
+printf '\n'
+
+printf '%s\n' '== state gate template =='
+sed -n '1,160p' "$template_path"
+printf '\n'
+
+printf '%s\n' 'RESULT: CHATCTX_DONE rc=0'
