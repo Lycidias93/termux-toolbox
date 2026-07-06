@@ -39,7 +39,9 @@ else
   err 'state_gate_missing'
 fi
 
-if grep -Eq '```|cgrun|cgflow|bash -lc|chmod |git |python3|tsu|su -c|ssh ' "$input"; then
+cgrun_cmd_re='(^|[^[:alnum:]_./-])cgrun([[:space:];|&)]|$)'
+runish_re='```|cgflow|bash -lc|chmod |git |python3|tsu|su -c|ssh '
+if grep -Eq "$runish_re" "$input" || grep -Eq "$cgrun_cmd_re" "$input"; then
   if grep -Fq 'Code-output-Hardgate' "$input"; then
     pass 'code_output_hardgate_present'
   else
@@ -51,7 +53,7 @@ fi
 
 if grep -Fq 'tools/cgflow' "$input"; then
   pass 'cgflow_present'
-elif grep -Eq '(^|[^[:alnum:]_./-])cgrun([[:space:];|&)]|$)' "$input"; then
+elif grep -Eq "$cgrun_cmd_re" "$input"; then
   if grep -Fq 'tools/chatctx ' "$input"; then
     pass 'free_cgrun_has_chatctx'
   else
@@ -74,7 +76,8 @@ else
   pass 'no_network_pipe_to_shell'
 fi
 
-if grep -Eq 'cgrun.*cgrun' "$input"; then
+cgrun_count="$( { grep -Eo "$cgrun_cmd_re" "$input" 2>/dev/null || true; } | wc -l | tr -d ' ')"
+if [[ "$cgrun_count" -gt 1 ]]; then
   err 'recursive_cgrun_present'
 else
   pass 'no_recursive_cgrun'
@@ -98,11 +101,36 @@ else
   pass 'no_inline_interpreter_payload'
 fi
 
-if grep -Fq 'CGRUN_AUTO_TAIL=0' "$input" && grep -Fq 'cgtail' "$input" && grep -Fq 'cgrun' "$input"; then
-  if grep -Fq 'set +e' "$input" && grep -Eq 'rc="?\$\?"?' "$input" && grep -Eq 'exit[[:space:]]+"?\$rc"?' "$input"; then
-    pass 'cgrun_nonzero_tail_preserved'
+flat_input="$(tr '\n' ' ' < "$input")"
+if printf '%s\n' "$flat_input" | grep -Eq -- '--log[[:space:]]+[^[:space:]]+.*--copy[[:space:]]+1|--copy[[:space:]]+1.*--log[[:space:]]+'; then
+  err 'guard_copy_with_explicit_log_present'
+else
+  pass 'no_guard_copy_with_explicit_log'
+fi
+
+if grep -Fq 'CGRUN_AUTO_TAIL=0' "$input" && grep -Eq "$cgrun_cmd_re" "$input" && grep -Eq 'cgtail-autocopy-guard[.]sh|cgautotail-guard[.]sh|--run-token|--expect-marker' "$input"; then
+  missing_meta=0
+  for key in CGFLOW_RUN_TOKEN CGFLOW_LANE CGFLOW_SCOPE CGFLOW_HOST CGFLOW_ROUTE_CLASS CGFLOW_SECRET_CLASS CGFLOW_EXPECTED_MARKER; do
+    if grep -Fq "echo \"${key}=" "$input" || grep -Fq "printf \"${key}=" "$input" || grep -Fq "printf '${key}=" "$input"; then
+      :
+    else
+      say "FAIL: guarded_cgrun_metadata_echo_missing $key"
+      missing_meta=1
+      fail=1
+    fi
+  done
+  if [[ "$missing_meta" -eq 0 ]]; then
+    pass 'guarded_cgrun_metadata_echo_present'
+  fi
+else
+  pass 'guarded_cgrun_metadata_echo_not_required'
+fi
+
+if grep -Fq 'CGRUN_AUTO_TAIL=0' "$input" && grep -Fq 'cgtail' "$input" && grep -Eq "$cgrun_cmd_re" "$input"; then
+  if grep -Fq 'set +e' "$input" && grep -Eq 'rc="?\$\?"?' "$input" && grep -Eq '\([[:space:]]*exit[[:space:]]+"?\$rc"?[[:space:]]*\)' "$input"; then
+    pass 'cgrun_nonzero_tail_preserved_interactive_safe'
   else
-    err 'cgrun_nonzero_can_skip_cgtail'
+    err 'cgrun_nonzero_can_skip_cgtail_or_close_shell'
   fi
 else
   pass 'cgrun_nonzero_tail_pattern_not_detected'
@@ -130,16 +158,8 @@ else
   pass 'no_sha_sidecar'
 fi
 
-# ASSISTANT_OUTPUT_GUARD_NO_EXPLICIT_LOG_COPY_V1_20260706_START
-flat_input="$(tr '\n' ' ' < "$input")"
-if printf '%s\n' "$flat_input" | grep -Eq '(cgtail-autocopy-guard[.]sh|cgautotail-guard[.]sh)[^#]*--log[[:space:]]+[^[:space:]]+[^#]*--copy[[:space:]]+1|(cgtail-autocopy-guard[.]sh|cgautotail-guard[.]sh)[^#]*--copy[[:space:]]+1[^#]*--log[[:space:]]+'; then
-  err 'guard_copy_with_explicit_log_present'
-else
-  pass 'no_guard_copy_with_explicit_log'
-fi
-# ASSISTANT_OUTPUT_GUARD_NO_EXPLICIT_LOG_COPY_V1_20260706_END
-
-if grep -Eiq '(ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]+|xox[baprs]-|AKIA[0-9A-Z]{16}|BEGIN OPENSSH PRIVATE KEY|BEGIN RSA PRIVATE KEY|password=|token=|secret=)' "$input"; then
+secret_scan="$(sed -E 's/CGFLOW_RUN_TOKEN=/CGFLOW_RUN_META=/g; s/run_token=/run_meta=/g; s/--run-token/--run-meta/g; s/CG_RUN_TOKEN=/CG_RUN_META=/g; s/RUN_TOKEN=/RUN_META=/g' "$input")"
+if printf '%s\n' "$secret_scan" | grep -Eiq '(ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]+|xox[baprs]-|AKIA[0-9A-Z]{16}|BEGIN OPENSSH PRIVATE KEY|BEGIN RSA PRIVATE KEY|password=|token=|secret=)'; then
   err 'secret_smell_present'
 else
   pass 'no_secret_smell'
@@ -155,8 +175,8 @@ else
   pass 'routeguard_ack_not_used'
 fi
 
-if grep -Eq 'cgrun|tools/cgflow|bash -lc' "$input"; then
-  if grep -Fq 'RESULT:' "$input"; then
+if grep -Eq 'tools/cgflow|bash -lc' "$input" || grep -Eq "$cgrun_cmd_re" "$input"; then
+  if grep -Eq '^RESULT: ' "$input"; then
     pass 'result_marker_present'
   else
     err 'result_marker_missing_for_run'
