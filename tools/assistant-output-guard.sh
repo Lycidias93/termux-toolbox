@@ -51,7 +51,7 @@ fi
 
 if grep -Fq 'tools/cgflow' "$input"; then
   pass 'cgflow_present'
-elif grep -Fq 'cgrun' "$input"; then
+elif grep -Eq '(^|[^[:alnum:]_./-])cgrun([[:space:];|&)]|$)' "$input"; then
   if grep -Fq 'tools/chatctx ' "$input"; then
     pass 'free_cgrun_has_chatctx'
   else
@@ -129,6 +129,15 @@ if grep -Eq '\.(sha256|sha512)([^[:alnum:]_]|$)' "$input"; then
 else
   pass 'no_sha_sidecar'
 fi
+
+# ASSISTANT_OUTPUT_GUARD_NO_EXPLICIT_LOG_COPY_V1_20260706_START
+flat_input="$(tr '\n' ' ' < "$input")"
+if printf '%s\n' "$flat_input" | grep -Eq '(cgtail-autocopy-guard[.]sh|cgautotail-guard[.]sh)[^#]*--log[[:space:]]+[^[:space:]]+[^#]*--copy[[:space:]]+1|(cgtail-autocopy-guard[.]sh|cgautotail-guard[.]sh)[^#]*--copy[[:space:]]+1[^#]*--log[[:space:]]+'; then
+  err 'guard_copy_with_explicit_log_present'
+else
+  pass 'no_guard_copy_with_explicit_log'
+fi
+# ASSISTANT_OUTPUT_GUARD_NO_EXPLICIT_LOG_COPY_V1_20260706_END
 
 if grep -Eiq '(ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]+|xox[baprs]-|AKIA[0-9A-Z]{16}|BEGIN OPENSSH PRIVATE KEY|BEGIN RSA PRIVATE KEY|password=|token=|secret=)' "$input"; then
   err 'secret_smell_present'
