@@ -1,0 +1,15 @@
+scope	class	pack	card	host	route_hint
+repo	repo	context-packs/repo_maintenance.md	task-cards/repo_update.md	pixel-local	none
+generic	repo	context-packs/generic_repo.md	task-cards/repo_update.md	pixel-local	none
+workflow-baseline	workflow	context-packs/generic_repo.md	task-cards/workflow_baseline.md	pixel-local	none
+pixel	device	context-packs/host_operations.md	task-cards/host_operations.md	pixel	none
+pixel-dispatcher	special	context-packs/host_operations.md	task-cards/host_operations.md	pixel	none
+pi3	device	context-packs/host_operations.md	task-cards/host_operations.md	pi3	read-only
+pi4	device	context-packs/host_operations.md	task-cards/host_operations.md	pi4	read-only
+berylax	device	context-packs/host_operations.md	task-cards/host_operations.md	berylax	read-only
+pi-host-drop	special	context-packs/host_operations.md	task-cards/host_operations.md	pi-host	none
+dns-ha-route	special	context-packs/host_operations.md	task-cards/host_operations.md	pi3-pi4	read-only
+pi4-takeout	special	context-packs/host_operations.md	task-cards/host_operations.md	pi4	read-only
+zeropi2	device	context-packs/host_operations.md	task-cards/host_operations.md	zeropi2	read-only
+zeropi2-edge	special	context-packs/host_operations.md	task-cards/host_operations.md	zeropi2	read-only
+omen	device	context-packs/host_operations.md	task-cards/host_operations.md	omen	read-only
