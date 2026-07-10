@@ -160,3 +160,12 @@ Verify markers:
 - guard logs contain CGRUN_STALE_LATEST_GUARD_LOG_DONE
 - autoclip-doctor remains PASS
 <!-- AUTOCLIP_V934_TOOLBOX_README_END -->
+
+<!-- TOOLBOX_ARTIFACT_LANE_BINDING_V2_20260710_START -->
+## Artifact and lane-binding guard v2
+
+- Full script artifacts are started through `cg-run-file`, not `cgrun <script>`.
+- `CGRUN_AUTO_TAIL=0` must not be followed by an unbound `cgtail-lane` handoff.
+- Manual lane tails require current lane/status evidence and an expected result marker.
+- `tools/assistant-output-guard.sh` blocks these invalid patterns before copy/run.
+<!-- TOOLBOX_ARTIFACT_LANE_BINDING_V2_20260710_END -->

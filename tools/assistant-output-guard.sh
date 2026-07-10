@@ -136,6 +136,34 @@ else
   pass 'cgrun_nonzero_tail_pattern_not_detected'
 fi
 
+# ASSISTANT_OUTPUT_GUARD_ARTIFACT_LANE_BINDING_V2_20260710
+artifact_script_re='([$]PREFIX/tmp/|/data/data/com[.]termux/files/usr/tmp/|/storage/emulated/0/)[^[:space:]]*[.]sh'
+if grep -Eq "$cgrun_cmd_re" "$input" && grep -Eq "$artifact_script_re" "$input"; then
+  if grep -Fq 'cg-run-file' "$input"; then
+    pass 'artifact_runner_uses_cg_run_file'
+  else
+    err 'artifact_cgrun_requires_cg_run_file'
+  fi
+else
+  pass 'artifact_cgrun_pattern_not_detected'
+fi
+
+if grep -Fq 'CGRUN_AUTO_TAIL=0' "$input" && grep -Fq 'cgtail-lane' "$input"; then
+  err 'manual_lane_tail_after_autotail_optout_forbidden'
+else
+  pass 'no_autotail_optout_manual_lane_tail_mix'
+fi
+
+if grep -Fq 'cgtail-lane' "$input"; then
+  if grep -Fq 'cgstatus' "$input" && grep -Fq 'cglanes' "$input" && grep -Eq 'CGFLOW_EXPECTED_MARKER|--expect-marker' "$input"; then
+    pass 'manual_lane_tail_has_binding_preflight'
+  else
+    err 'manual_lane_tail_without_binding_preflight'
+  fi
+else
+  pass 'manual_lane_tail_not_detected'
+fi
+
 if grep -Fq 'RESULT: CGTAIL_CLIPBOARD_HANDOFF_DONE' "$input"; then
   if grep -Fq 'tools/cgtail-autocopy-guard.sh' "$input" || grep -Fq 'CGTAIL_EXPECT_RESULT=' "$input"; then
     pass 'cgtail_expected_marker_guard_present'

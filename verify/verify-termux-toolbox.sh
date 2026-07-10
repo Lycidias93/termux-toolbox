@@ -45,11 +45,28 @@ fi
 if grep -RInE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9_]+|github_pat_|AKIA[0-9A-Z]{16}|client_secret|refresh_token|access_token|password=|token=)' . \
   --exclude-dir=.git \
   --exclude='verify-termux-toolbox.sh' \
-  --exclude='review-termux-public-safety.sh' >"$SECRET_SCAN_FILE" 2>/dev/null; then
+  --exclude='review-termux-public-safety.sh' \
+  --exclude='assistant-output-guard.sh' \
+  --exclude='secret-guard.sh' >"$SECRET_SCAN_FILE" 2>/dev/null; then
   cat "$SECRET_SCAN_FILE"
   echo "FAIL secret_guard"
   exit 1
 fi
+
+# TERMUX_TOOLBOX_VERIFY_ARTIFACT_LANE_BINDING_V2_20260710
+for required in \
+  'ASSISTANT_OUTPUT_GUARD_ARTIFACT_LANE_BINDING_V2_20260710' \
+  'artifact_cgrun_requires_cg_run_file' \
+  'manual_lane_tail_after_autotail_optout_forbidden' \
+  'manual_lane_tail_without_binding_preflight'
+do
+  if grep -Fq "$required" tools/assistant-output-guard.sh; then
+    echo "PASS assistant_output_guard_contract=$required"
+  else
+    echo "FAIL assistant_output_guard_contract_missing=$required"
+    fail=1
+  fi
+done
 
 if [ "$fail" -ne 0 ]; then
   echo "RESULT: TERMUX_TOOLBOX_VERIFY_FAIL"
