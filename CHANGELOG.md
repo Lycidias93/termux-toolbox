@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed route-guard false positives with token-boundary route path classification.
+- Added route-guard self-tests for generic and genuinely route-sensitive paths.
+- Added config/workflow-scopes.tsv as the central workflow scope registry.
+- Added all direct Heimnetz device and special scopes to chatctx and cgflow.
+- Added host operation context and task-card coverage.
+- Added complete central scope and consumer-wrapper verification.
+- Removed the repo-only scope whitelist that caused unknown scope errors.
+
 - Initial public Termux toolbox layout.
 - Add verify script and basic helper placeholders.
 

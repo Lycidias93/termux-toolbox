@@ -3,19 +3,24 @@ set -Eeuo pipefail
 
 on_err() {
   local rc="$?"
-  printf 'RESULT: CGFLOW_FAIL rc=%s\n' "$rc"
+  printf "RESULT: CGFLOW_FAIL rc=%s\n" "$rc"
   exit "$rc"
 }
 trap on_err ERR
 
-say() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-pass() { printf 'PASS: %s\n' "$*"; }
+say() { printf "%s\n" "$*"; }
+fail() { printf "FAIL: %s\n" "$*" >&2; exit 1; }
+pass() { printf "PASS: %s\n" "$*"; }
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+toolbox_root="${WORKFLOW_TOOLBOX_ROOT:-$(cd "$script_dir/.." && pwd -P)}"
+registry="$toolbox_root/config/workflow-scopes.tsv"
+tab="$(printf "\t")"
 
 usage() {
-  printf '%s\n' 'Usage: tools/cgflow <scope> <mode> <artifact-or-none>'
-  printf '%s\n' 'Scopes: repo generic workflow-baseline'
-  printf '%s\n' 'Modes: verify-only repo-doc repo-code artifact-python artifact-bash multi-repo'
+  printf "%s\n" "Usage: tools/cgflow <scope> <mode> <artifact-or-none>"
+  printf "%s\n" "Scopes: run tools/chatctx --list"
+  printf "%s\n" "Modes: verify-only repo-doc repo-code artifact-python artifact-bash multi-repo"
 }
 
 scope="${1:-}"
@@ -24,13 +29,30 @@ artifact="${3:-none}"
 
 if [[ -z "$scope" || -z "$mode" ]]; then
   usage
-  fail 'missing_scope_or_mode'
+  fail "missing_scope_or_mode"
 fi
 
-case "${scope,,}" in
-  repo|generic|workflow-baseline|workflow|baseline) ;;
-  *) fail "unknown_scope=$scope" ;;
+scope="${scope,,}"
+case "$scope" in
+  repo-maintenance|maintenance) scope="repo" ;;
+  generic-repo) scope="generic" ;;
+  workflow|baseline) scope="workflow-baseline" ;;
 esac
+
+[[ -s "$registry" ]] || fail "scope_registry_missing=$registry"
+scope_found=0
+first=1
+while IFS="$tab" read -r row_scope row_class row_pack row_card row_host row_route; do
+  if [[ "$first" == "1" ]]; then
+    first=0
+    continue
+  fi
+  if [[ "$row_scope" == "$scope" ]]; then
+    scope_found=1
+    break
+  fi
+done < "$registry"
+[[ "$scope_found" == "1" ]] || fail "unknown_scope=$scope"
 
 case "$mode" in
   verify-only|repo-doc|repo-code|artifact-python|artifact-bash|multi-repo) ;;
@@ -41,21 +63,19 @@ state_gate_decision="${HEIMNETZ_STATE_GATE_DECISION:-}"
 case "$mode" in
   verify-only) ;;
   repo-doc)
-    if [[ "$state_gate_decision" != 'GO' && "$state_gate_decision" != 'DOC-ONLY' ]]; then
-      fail 'repo-doc_requires_state_gate_GO_or_DOC_ONLY'
+    if [[ "$state_gate_decision" != "GO" && "$state_gate_decision" != "DOC-ONLY" ]]; then
+      fail "repo-doc_requires_state_gate_GO_or_DOC_ONLY"
     fi
     ;;
   repo-code|artifact-python|artifact-bash|multi-repo)
-    if [[ "$state_gate_decision" != 'GO' ]]; then
-      fail 'mode_requires_state_gate_GO'
-    fi
+    [[ "$state_gate_decision" == "GO" ]] || fail "mode_requires_state_gate_GO"
     ;;
 esac
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
-say '== cgflow =='
+say "== cgflow =="
 say "time=$(date -Is)"
 say "repo_root=$repo_root"
 say "scope=$scope"
@@ -65,14 +85,16 @@ say "state_gate_decision=${state_gate_decision:-unset}"
 say "routeguard_ack=${HEIMNETZ_ROUTEGUARD_ACK:-0}"
 say
 
-[[ -x tools/chatctx ]] || fail 'tools/chatctx_missing_or_not_executable'
+[[ -x tools/chatctx ]] || fail "tools/chatctx_missing_or_not_executable"
 tools/chatctx "$scope"
 pass "chatctx_scope $scope"
 
 check_lf() {
   local path="$1"
+  local cr
+  cr="$(printf "\r")"
   [[ -f "$path" ]] || fail "missing_file=$path"
-  if LC_ALL=C grep -q $'\r' "$path"; then
+  if LC_ALL=C grep -q "$cr" "$path"; then
     fail "crlf_present=$path"
   fi
   pass "lf_only $path"
@@ -80,15 +102,17 @@ check_lf() {
 
 check_bash_script() {
   local path="$1"
+  local first lt hd hs
   [[ -s "$path" ]] || fail "missing_or_empty=$path"
   check_lf "$path"
-  local first=''
-  first="$(sed -n '1p' "$path")"
-  [[ "$first" == '#!/usr/bin/env bash' ]] || fail "shebang_wrong=$path"
+  first="$(sed -n "1p" "$path")"
+  [[ "$first" == "#!/usr/bin/env bash" ]] || fail "shebang_wrong=$path"
   [[ -x "$path" ]] || fail "not_executable=$path"
   bash -n "$path"
   pass "bash_syntax $path"
-  local lt='<'; local hd="${lt}${lt}"; local hs="${lt}${lt}${lt}"
+  lt="<"
+  hd="${lt}${lt}"
+  hs="${hd}${lt}"
   if LC_ALL=C grep -Fq "$hd" "$path" || LC_ALL=C grep -Fq "$hs" "$path"; then
     fail "heredoc_or_herestring_present=$path"
   fi
@@ -100,21 +124,21 @@ check_bash_script tools/cgflow
 
 if [[ -x tools/secret-guard.sh ]]; then
   tools/secret-guard.sh all
-  pass 'secret_guard_all'
+  pass "secret_guard_all"
 else
-  pass 'secret_guard_absent_allowed_for_generic_repo'
+  pass "secret_guard_absent_allowed_for_generic_repo"
 fi
 
 if [[ -x tools/route-change-guard.sh ]]; then
   HEIMNETZ_ROUTEGUARD_ACK="${HEIMNETZ_ROUTEGUARD_ACK:-0}" tools/route-change-guard.sh all
-  pass 'route_change_guard_all'
+  pass "route_change_guard_all"
 else
-  pass 'route_change_guard_absent_allowed_for_generic_repo'
+  pass "route_change_guard_absent_allowed_for_generic_repo"
 fi
 
 case "$mode" in
   artifact-python)
-    command -v python3 >/dev/null 2>&1 || fail 'python3_missing'
+    command -v python3 >/dev/null 2>&1 || fail "python3_missing"
     [[ -s "$artifact" ]] || fail "artifact_missing_or_empty=$artifact"
     check_lf "$artifact"
     python3 -m py_compile "$artifact"
@@ -124,8 +148,8 @@ case "$mode" in
     check_bash_script "$artifact"
     ;;
   multi-repo)
-    [[ -f WORKFLOW_BASELINE.md || -f WORKFLOW_TOOLBOX.md ]] || fail 'workflow_baseline_doc_missing'
-    pass 'multi_repo_baseline_doc_present'
+    [[ -f WORKFLOW_BASELINE.md || -f WORKFLOW_TOOLBOX.md ]] || fail "workflow_baseline_doc_missing"
+    pass "multi_repo_baseline_doc_present"
     ;;
   verify-only|repo-doc|repo-code)
     pass "mode_preflight $mode"
@@ -133,9 +157,9 @@ case "$mode" in
 esac
 
 if git diff --check; then
-  pass 'git_diff_check'
+  pass "git_diff_check"
 else
-  fail 'git_diff_check'
+  fail "git_diff_check"
 fi
 
-say 'RESULT: CGFLOW_PASS rc=0'
+say "RESULT: CGFLOW_PASS rc=0"
