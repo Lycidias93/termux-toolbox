@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a complete Termux maintenance workflow with a preflight audit, gated package update, fast-forward-only toolbox update, installed-helper parity verification and post-audit.
+- Added explicit backup and rollback boundaries for toolbox files while keeping package downgrades manual.
+- Added old Python runtime directory inventory without automatic deletion.
 - Fixed route-guard false positives with token-boundary route path classification.
 - Added route-guard self-tests for generic and genuinely route-sensitive paths.
 - Added config/workflow-scopes.tsv as the central workflow scope registry.
