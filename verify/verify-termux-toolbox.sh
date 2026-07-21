@@ -68,6 +68,18 @@ do
   fi
 done
 
+if [[ -x verify/verify-cg-lane-secret-classes.sh ]]; then
+  if verify/verify-cg-lane-secret-classes.sh; then
+    echo "PASS cg_lane_secret_class_contract"
+  else
+    echo "FAIL cg_lane_secret_class_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_lane_secret_class_verify_missing"
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "RESULT: TERMUX_TOOLBOX_VERIFY_FAIL"
   exit 1
