@@ -31,7 +31,7 @@ run_case() {
   chmod 0755 "$script"
   rm -f "$CAPTURE/first_line" "$CAPTURE/script_path" "$CAPTURE/mode" "$CAPTURE/scope"
 
-  PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
+  TMPDIR="$TMP_ROOT" PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
     bash "$WRAPPER" "$script" verify pixel
 
   [ "$(cat "$CAPTURE/first_line")" = "$expected_shebang" ] || {
