@@ -10,17 +10,17 @@ FAKE_BIN="$TMP_ROOT/bin"
 CAPTURE="$TMP_ROOT/capture"
 mkdir -p "$FAKE_BIN" "$CAPTURE"
 
-cat > "$FAKE_BIN/cg-lane.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-[ "${1:-}" = "run-file" ] || exit 91
-script="${2:-}"
-[ -f "$script" ] || exit 92
-printf '%s\n' "$(head -n 1 "$script")" > "$CG_RUN_FILE_CAPTURE/first_line"
-printf '%s\n' "$script" > "$CG_RUN_FILE_CAPTURE/script_path"
-printf '%s\n' "${3:-}" > "$CG_RUN_FILE_CAPTURE/mode"
-printf '%s\n' "${4:-}" > "$CG_RUN_FILE_CAPTURE/scope"
-EOF
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'set -euo pipefail'
+  printf '%s\n' '[ "${1:-}" = "run-file" ] || exit 91'
+  printf '%s\n' 'script="${2:-}"'
+  printf '%s\n' '[ -f "$script" ] || exit 92'
+  printf '%s\n' 'printf '\''%s\n'\'' "$(head -n 1 "$script")" > "$CG_RUN_FILE_CAPTURE/first_line"'
+  printf '%s\n' 'printf '\''%s\n'\'' "$script" > "$CG_RUN_FILE_CAPTURE/script_path"'
+  printf '%s\n' 'printf '\''%s\n'\'' "${3:-}" > "$CG_RUN_FILE_CAPTURE/mode"'
+  printf '%s\n' 'printf '\''%s\n'\'' "${4:-}" > "$CG_RUN_FILE_CAPTURE/scope"'
+} > "$FAKE_BIN/cg-lane.sh"
 chmod 0755 "$FAKE_BIN/cg-lane.sh"
 
 run_case() {
