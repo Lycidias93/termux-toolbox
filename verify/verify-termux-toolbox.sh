@@ -80,6 +80,18 @@ else
   fail=1
 fi
 
+if [[ -x verify/verify-cg-run-file-termux-shebang.sh ]]; then
+  if verify/verify-cg-run-file-termux-shebang.sh; then
+    echo "PASS cg_run_file_termux_shebang_contract"
+  else
+    echo "FAIL cg_run_file_termux_shebang_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_run_file_termux_shebang_verify_missing"
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "RESULT: TERMUX_TOOLBOX_VERIFY_FAIL"
   exit 1
