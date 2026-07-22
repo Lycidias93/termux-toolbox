@@ -1,3 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec cg-lane.sh run-file "$@"
+
+script="${1:-}"
+[ -n "$script" ] || exec cg-lane.sh run-file "$@"
+
+first="$(head -n 1 "$script" 2>/dev/null || true)"
+case "$first" in
+  '#!/data/data/com.termux/files/usr/bin/bash'|'#!/data/data/com.termux/files/usr/bin/sh')
+    tmp_base="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+    mkdir -p "$tmp_base"
+    normalized="$(mktemp "$tmp_base/cg-run-file-normalized.XXXXXX")"
+    cleanup() { rm -f "$normalized" 2>/dev/null || true; }
+    trap cleanup EXIT INT TERM
+
+    case "$first" in
+      '#!/data/data/com.termux/files/usr/bin/bash') normalized_shebang='#!/usr/bin/env bash' ;;
+      '#!/data/data/com.termux/files/usr/bin/sh') normalized_shebang='#!/usr/bin/env sh' ;;
+    esac
+
+    {
+      printf '%s\n' "$normalized_shebang"
+      tail -n +2 "$script"
+    } > "$normalized"
+    chmod 0755 "$normalized"
+
+    shift
+    cg-lane.sh run-file "$normalized" "$@"
+    ;;
+  *)
+    exec cg-lane.sh run-file "$@"
+    ;;
+esac
