@@ -92,6 +92,18 @@ else
   fail=1
 fi
 
+if [[ -f verify/verify-cg-execution-receipt.sh ]]; then
+  if bash verify/verify-cg-execution-receipt.sh; then
+    echo "PASS cg_execution_receipt_contract"
+  else
+    echo "FAIL cg_execution_receipt_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_execution_receipt_verify_missing"
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "RESULT: TERMUX_TOOLBOX_VERIFY_FAIL"
   exit 1

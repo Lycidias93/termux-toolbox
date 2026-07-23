@@ -23,6 +23,16 @@ sanitize_id() {
   printf '%s\n' "$raw"
 }
 
+safe_task_label() {
+  local value="${1:-unknown}"
+  value="${value##*/}"
+  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._@+-' '_')"
+  value="${value##_}"
+  value="${value%%_}"
+  [ -n "$value" ] || value="unknown"
+  printf '%.120s\n' "$value"
+}
+
 require_init() {
   mkdir -p "$LANES_DIR" "$LOCKS_DIR" "$RUNS_DIR" "$OUTPUT_DIR"
   if [ ! -s "$CURRENT_FILE" ]; then
@@ -215,7 +225,7 @@ cmd_status() {
     if [ -f "$logpath" ]; then
       bytes="$(wc -c < "$logpath" | tr -d ' ')"
       lines="$(wc -l < "$logpath" | tr -d ' ')"
-      result="$(grep -E 'RESULT:|FAIL:|ERROR:' "$logpath" | tail -n 1 || true)"
+      result="$(grep -E 'RESULT:|FAIL:|ERROR:|STOP:' "$logpath" | tail -n 1 || true)"
     fi
     printf '%s run=%s bytes=%s lines=%s last="%s"\n' "$lane" "${runid:-none}" "$bytes" "$lines" "$result"
   done
@@ -237,12 +247,13 @@ cmd_tail() {
   [ -f "$logpath" ] || die "log_path_missing path=$logpath"
   log "== cgtail-lane target=$lane_or_run lines=$lines log=$logpath =="
   tail -n "$lines" "$logpath"
-  log "RESULT: CG_MULTILANE_TAIL_OK"
+  log "RESULT: CG_MULTILANE_TAIL_OK chat_lane=$lane_or_run"
 }
 
 cmd_run_file() {
   require_init
-  local script="${1:-}" mode="${2:-VERIFY}" scope_arg="${3:-}" lane scope host route secret run_id run_dir lock_name log_path rc wrapper wrapper_q script_q
+  local script="${1:-}" mode="${2:-VERIFY}" scope_arg="${3:-}"
+  local lane scope host route secret run_id run_dir lock_name log_path rc wrapper wrapper_q script_q task_label outcome result_marker
   [ -n "$script" ] || die "script_arg_missing"
   script="$(readlink -f "$script")"
   verify_script_file "$script"
@@ -256,6 +267,7 @@ cmd_run_file() {
   command -v cgrun >/dev/null 2>&1 || die "cgrun_missing"
   run_id="$(date +%Y%m%d_%H%M%S)_${lane}_${mode}_${scope}_$$_$RANDOM"
   run_dir="$RUNS_DIR/$run_id"
+  task_label="$(safe_task_label "$script")"
   mkdir -p "$run_dir"
   {
     printf 'CG_LANE_VERSION=%s\n' "$VERSION"
@@ -267,6 +279,7 @@ cmd_run_file() {
     printf 'CG_RUN_ROUTE_CLASS=%s\n' "$route"
     printf 'CG_RUN_SECRET_CLASS=%s\n' "$secret"
     printf 'CG_RUN_SCRIPT=%s\n' "$script"
+    printf 'CG_RUN_TASK=%s\n' "$task_label"
     printf 'CG_RUN_STARTED_AT=%s\n' "$(date -Is)"
   } > "$run_dir/meta.env"
   lock_name="lane-$lane"
@@ -289,16 +302,26 @@ cmd_run_file() {
     printf 'export CG_RUN_SCRIPT=%q\n' "$script"
     printf "printf '%%s\\n' 'CG_MULTILANE_PAYLOAD_START'\n"
     printf 'bash %s\n' "$script_q"
-    printf 'payload_rc=$?\n'
-    printf "printf 'CG_MULTILANE_PAYLOAD_DONE rc=%%s\\n' \"\$payload_rc\"\n"
-    printf 'exit "$payload_rc"\n'
+    printf 'payload_exit_code=$?\n'
+    printf "printf 'CG_MULTILANE_PAYLOAD_DONE payload_exit_code=%%s\\n' \"\$payload_exit_code\"\n"
+    printf 'exit "$payload_exit_code"\n'
   } > "$wrapper"
   chmod 0755 "$wrapper"
   bash -n "$wrapper"
   printf -v wrapper_q '%q' "$wrapper"
   {
     log "CG_MULTILANE_HEADER lane=$lane run_id=$run_id mode=$mode scope=$scope host=$host route_class=$route secret_class=$secret script=$script"
-    cgrun "bash $wrapper_q"
+    CG_LANE_ID="$lane" \
+    CG_LANE_SCOPE="$scope" \
+    CG_LANE_HOST="$host" \
+    CG_LANE_ROUTE_CLASS="$route" \
+    CG_LANE_SECRET_CLASS="$secret" \
+    CG_RUN_ID="$run_id" \
+    CG_RUN_MODE="$mode" \
+    CG_RUN_SCOPE="$scope" \
+    CG_RUN_HOST="$host" \
+    CG_RUN_SCRIPT="$script" \
+      cgrun "bash $wrapper_q"
   } || rc=$?
   log_path="$(latest_global_log || true)"
   if [ -n "$log_path" ]; then
@@ -306,13 +329,31 @@ cmd_run_file() {
     link_lane_latest "$lane" "$run_id" "$log_path"
   fi
   printf '%s\n' "$rc" > "$run_dir/rc"
+  printf '%s\n' "$rc" > "$run_dir/workflow_exit_code"
   printf '%s\n' "$(date -Is)" > "$run_dir/finished_at"
   release_lock "$lock_name"
+
   if [ "$rc" -eq 0 ]; then
-    log "RESULT: CG_MULTILANE_RUN_FILE_OK lane=$lane run_id=$run_id log=$log_path"
+    outcome="success"
+    result_marker="CG_MULTILANE_RUN_FILE_OK"
   else
-    log "FAIL: CG_MULTILANE_RUN_FILE_FAILED rc=$rc lane=$lane run_id=$run_id log=$log_path" >&2
+    outcome="payload_failed"
+    result_marker="CG_MULTILANE_RUN_FILE_FAILED"
+    log "FAIL: $result_marker outcome=$outcome workflow_exit_code=$rc chat_lane=$lane task=$task_label run_id=$run_id log=$log_path" >&2
   fi
+
+  log "== cg multilane completion =="
+  log "outcome=$outcome"
+  log "chat_lane=$lane"
+  log "task=$task_label"
+  log "scope=$scope"
+  log "host=$host"
+  log "route_class=$route"
+  log "secret_class=$secret"
+  log "run_id=$run_id"
+  log "workflow_exit_code=$rc"
+  log "log_path=$log_path"
+  log "RESULT: $result_marker outcome=$outcome chat_lane=$lane task=$task_label run_id=$run_id workflow_exit_code=$rc log=$log_path"
   return "$rc"
 }
 
@@ -328,7 +369,7 @@ cmd_adopt() {
   printf '%s\n' "$logpath" > "$RUNS_DIR/$run_id/log.path"
   printf 'adopted\n' > "$RUNS_DIR/$run_id/rc"
   link_lane_latest "$lane" "$run_id" "$logpath"
-  log "RESULT: CG_MULTILANE_ADOPT_OK lane=$lane run_id=$run_id log=$logpath"
+  log "RESULT: CG_MULTILANE_ADOPT_OK chat_lane=$lane run_id=$run_id log=$logpath"
 }
 
 cmd_unlock_stale() {

@@ -1,20 +1,109 @@
 #!/usr/bin/env bash
-# AUTOCLIP_V94_CGRUN_ALWAYS_COPY_BIN_WRAPPER
+# AUTOCLIP_V95_CGRUN_EXECUTION_RECEIPT
 set -uo pipefail
 
 PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
 REAL="$PREFIX_DIR/bin/cgrun.autoclip-v93-real"
 TAIL_LINES="${CGRUN_AUTO_TAIL_LINES:-dynamic}"
 STRICT="${CGRUN_AUTO_TAIL_STRICT:-0}"
-OUT_DIR="${HOME:-/data/data/com.termux/files/home}/.chatgpt-output"
-SECRET_CLASS="${CGFLOW_SECRET_CLASS:-${CG_LANE_SECRET_CLASS:-none}}"
+HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
+OUT_DIR="$HOME_DIR/.chatgpt-output"
+LANE_STATE_DIR="${CG_LANE_STATE_DIR:-$HOME_DIR/.chatgpt-lanes}"
+CURRENT_LANE_FILE="$LANE_STATE_DIR/current_lane"
 RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
 CAPTURE="$OUT_DIR/cgrun_autocopy_${RUN_STAMP}_$$.log"
 REDACTED="$OUT_DIR/cgrun_autocopy_${RUN_STAMP}_$$_redacted.log"
+RECEIPT="$OUT_DIR/cgrun_receipt_${RUN_STAMP}_$$.log"
+
+read_meta_value() {
+  local lane="$1" key="$2" file
+  file="$LANE_STATE_DIR/lanes/$lane/meta.env"
+  [ -f "$file" ] || return 1
+  awk -F= -v k="$key" '$1==k {print substr($0, length($1)+2)}' "$file" | tail -n 1
+}
+
+safe_token() {
+  local value="${1:-unknown}"
+  value="${value##*/}"
+  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._@+-' '_')"
+  value="${value##_}"
+  value="${value%%_}"
+  [ -n "$value" ] || value="unknown"
+  printf '%.120s\n' "$value"
+}
+
+latest_log_path() {
+  local path="$OUT_DIR/latest.log"
+  if [ -L "$path" ] || [ -f "$path" ]; then
+    readlink -f "$path" 2>/dev/null || printf '%s\n' "$path"
+  else
+    printf 'missing\n'
+  fi
+}
+
+resolve_lane_context() {
+  CHAT_LANE="${CG_LANE_ID:-}"
+  if [ -z "$CHAT_LANE" ] && [ -s "$CURRENT_LANE_FILE" ]; then
+    CHAT_LANE="$(cat "$CURRENT_LANE_FILE")"
+  fi
+  CHAT_LANE="$(safe_token "${CHAT_LANE:-unbound}")"
+
+  SCOPE="${CG_LANE_SCOPE:-${CG_RUN_SCOPE:-}}"
+  [ -n "$SCOPE" ] || SCOPE="$(read_meta_value "$CHAT_LANE" CG_LANE_SCOPE 2>/dev/null || true)"
+  SCOPE="$(safe_token "${SCOPE:-unknown}")"
+
+  HOST="${CG_LANE_HOST:-${CG_RUN_HOST:-}}"
+  [ -n "$HOST" ] || HOST="$(read_meta_value "$CHAT_LANE" CG_LANE_HOST 2>/dev/null || true)"
+  HOST="$(safe_token "${HOST:-unknown}")"
+
+  ROUTE_CLASS="${CG_LANE_ROUTE_CLASS:-}"
+  [ -n "$ROUTE_CLASS" ] || ROUTE_CLASS="$(read_meta_value "$CHAT_LANE" CG_LANE_ROUTE_CLASS 2>/dev/null || true)"
+  ROUTE_CLASS="$(safe_token "${ROUTE_CLASS:-unknown}")"
+
+  SECRET_CLASS="${CGFLOW_SECRET_CLASS:-${CG_LANE_SECRET_CLASS:-}}"
+  [ -n "$SECRET_CLASS" ] || SECRET_CLASS="$(read_meta_value "$CHAT_LANE" CG_LANE_SECRET_CLASS 2>/dev/null || true)"
+  SECRET_CLASS="$(safe_token "${SECRET_CLASS:-none}")"
+
+  RUN_ID="$(safe_token "${CG_RUN_ID:-none}")"
+  RUN_MODE="$(safe_token "${CG_RUN_MODE:-direct}")"
+
+  if [ -n "${CG_RUN_SCRIPT:-}" ]; then
+    TASK_SOURCE="artifact"
+    TASK_LABEL="$(safe_token "$CG_RUN_SCRIPT")"
+  else
+    TASK_SOURCE="direct"
+    TASK_LABEL="$(safe_token "${CGRUN_TASK_LABEL:-direct-cgrun}")"
+  fi
+}
+
+write_receipt() {
+  local marker="$1"
+  {
+    printf '%s\n' '== cg execution receipt =='
+    printf '%s\n' 'receipt_version=v1'
+    printf 'finished_at=%s\n' "$(date -Is)"
+    printf 'outcome=%s\n' "$COMMAND_OUTCOME"
+    printf 'chat_lane=%s\n' "$CHAT_LANE"
+    printf 'task=%s\n' "$TASK_LABEL"
+    printf 'task_source=%s\n' "$TASK_SOURCE"
+    printf 'scope=%s\n' "$SCOPE"
+    printf 'host=%s\n' "$HOST"
+    printf 'route_class=%s\n' "$ROUTE_CLASS"
+    printf 'secret_class=%s\n' "$SECRET_CLASS"
+    printf 'run_id=%s\n' "$RUN_ID"
+    printf 'run_mode=%s\n' "$RUN_MODE"
+    printf 'command_exit_code=%s\n' "$COMMAND_EXIT_CODE"
+    printf 'log_path=%s\n' "$LATEST_LOG"
+    printf 'RESULT: %s outcome=%s chat_lane=%s task=%s run_id=%s command_exit_code=%s\n' \
+      "$marker" "$COMMAND_OUTCOME" "$CHAT_LANE" "$TASK_LABEL" "$RUN_ID" "$COMMAND_EXIT_CODE"
+  } > "$RECEIPT"
+}
+
+resolve_lane_context
 
 if [ ! -x "$REAL" ]; then
   printf '%s\n' "FAIL cgrun real binary missing: $REAL" >&2
-  printf '%s\n' "RESULT: CGRUN_WRAPPER_FAIL rc=127" >&2
+  printf '%s\n' "RESULT: CGRUN_WRAPPER_FAILED outcome=runtime_missing workflow_exit_code=127" >&2
   exit 127
 fi
 
@@ -22,78 +111,131 @@ mkdir -p "$OUT_DIR"
 
 set +e
 "$REAL" "$@"
-rc=$?
+COMMAND_EXIT_CODE=$?
+
+if [ "$COMMAND_EXIT_CODE" -eq 0 ]; then
+  COMMAND_OUTCOME="success"
+  RECEIPT_MARKER="CGRUN_EXECUTION_OK"
+else
+  COMMAND_OUTCOME="command_failed"
+  RECEIPT_MARKER="CGRUN_EXECUTION_FAILED"
+fi
 
 printf '\n'
 printf '%s\n' "== cgrun mandatory auto dynamic cgtail =="
 date '+%Y-%m-%dT%H:%M:%S%z'
-printf '%s\n' "version=v9.4-always-copy"
-printf '%s\n' "original_cgrun_rc=$rc"
+printf '%s\n' "version=v9.5-execution-receipt"
+printf '%s\n' "command_exit_code=$COMMAND_EXIT_CODE"
 printf '%s\n' "tail_lines=$TAIL_LINES"
 printf '%s\n' "secret_class=$SECRET_CLASS"
+printf '%s\n' "chat_lane=$CHAT_LANE"
+printf '%s\n' "task=$TASK_LABEL"
 printf '%s\n' "note=every Termux run produces a clipboard handoff; negative findings are copied, not suppressed"
 
 "$PREFIX_DIR/bin/cgtail-autoclip-v93" "$TAIL_LINES" 2>&1 | tee "$CAPTURE"
 pipe_status=("${PIPESTATUS[@]}")
-tail_rc="${pipe_status[0]:-1}"
-tee_rc="${pipe_status[1]:-1}"
+TAIL_HELPER_EXIT_CODE="${pipe_status[0]:-1}"
+TEE_EXIT_CODE="${pipe_status[1]:-1}"
 
-copy_source="$CAPTURE"
-copy_mode="full"
+LATEST_LOG="$(latest_log_path)"
+write_receipt "$RECEIPT_MARKER"
+
+COPY_SOURCE="$CAPTURE"
+COPY_MODE="full"
 case "$SECRET_CLASS" in
   none|public|redacted)
     ;;
   possible|sensitive)
-    copy_mode="redacted"
+    COPY_MODE="redacted"
     {
       printf '%s\n' "== cgrun redacted mandatory AutoCopy =="
       printf '%s\n' "time=$(date -Is)"
       printf '%s\n' "secret_class=$SECRET_CLASS"
-      printf '%s\n' "original_cgrun_rc=$rc"
-      printf '%s\n' "cgtail_helper_rc=$tail_rc"
+      printf '%s\n' "command_exit_code=$COMMAND_EXIT_CODE"
+      printf '%s\n' "tail_helper_exit_code=$TAIL_HELPER_EXIT_CODE"
       printf '%s\n' "raw_handoff_suppressed=yes"
       grep -E '^(RESULT:|PASS |FAIL |STOP |NEXT=|SAFE_TO_|THERMAL_|TERMUX_|BOOTLOOP_|PROTECTOR_)' "$CAPTURE" 2>/dev/null | tail -n 200 || true
-      printf '%s\n' "RESULT: CGRUN_AUTOCOPY_REDACTED_HANDOFF_DONE rc=0"
     } > "$REDACTED"
-    copy_source="$REDACTED"
+    COPY_SOURCE="$REDACTED"
     ;;
   *)
-    copy_mode="redacted"
+    COPY_MODE="redacted"
     {
       printf '%s\n' "== cgrun redacted mandatory AutoCopy =="
       printf '%s\n' "time=$(date -Is)"
       printf '%s\n' "secret_class=unknown"
-      printf '%s\n' "original_cgrun_rc=$rc"
-      printf '%s\n' "cgtail_helper_rc=$tail_rc"
+      printf '%s\n' "command_exit_code=$COMMAND_EXIT_CODE"
+      printf '%s\n' "tail_helper_exit_code=$TAIL_HELPER_EXIT_CODE"
       printf '%s\n' "raw_handoff_suppressed=yes"
       grep -E '^(RESULT:|PASS |FAIL |STOP |NEXT=|SAFE_TO_)' "$CAPTURE" 2>/dev/null | tail -n 200 || true
-      printf '%s\n' "RESULT: CGRUN_AUTOCOPY_REDACTED_HANDOFF_DONE rc=0"
     } > "$REDACTED"
-    copy_source="$REDACTED"
+    COPY_SOURCE="$REDACTED"
     ;;
 esac
 
-copy_rc=127
-if command -v termux-clipboard-set >/dev/null 2>&1 && [ -s "$copy_source" ]; then
+{
+  printf '\n'
+  cat "$RECEIPT"
+} >> "$COPY_SOURCE"
+
+CLIPBOARD_EXIT_CODE=127
+if command -v termux-clipboard-set >/dev/null 2>&1 && [ -s "$COPY_SOURCE" ]; then
   if command -v timeout >/dev/null 2>&1; then
-    timeout 10 termux-clipboard-set < "$copy_source"
-    copy_rc=$?
+    timeout 10 termux-clipboard-set < "$COPY_SOURCE"
+    CLIPBOARD_EXIT_CODE=$?
   else
-    termux-clipboard-set < "$copy_source"
-    copy_rc=$?
+    termux-clipboard-set < "$COPY_SOURCE"
+    CLIPBOARD_EXIT_CODE=$?
   fi
 fi
 
-final_tail_rc="$tail_rc"
-if [ "$copy_rc" -eq 0 ]; then
-  final_tail_rc=0
+HANDOFF_EXIT_CODE="$TAIL_HELPER_EXIT_CODE"
+if [ "$CLIPBOARD_EXIT_CODE" -eq 0 ]; then
+  HANDOFF_EXIT_CODE=0
 fi
 
-printf '%s\n' "RESULT: CGRUN_AUTOCOPY_ALWAYS_DONE rc=$copy_rc mode=$copy_mode source=$copy_source helper_rc=$tail_rc tee_rc=$tee_rc original_cgrun_rc=$rc"
-printf '%s\n' "RESULT: CGRUN_AUTO_TAIL_DONE rc=$final_tail_rc original_cgrun_rc=$rc helper_rc=$tail_rc copy_rc=$copy_rc"
-
-if [ "$rc" -eq 0 ] && [ "$final_tail_rc" -ne 0 ] && [ "$STRICT" = "1" ]; then
-  exit "$final_tail_rc"
+if [ "$CLIPBOARD_EXIT_CODE" -eq 0 ]; then
+  HANDOFF_OUTCOME="success"
+elif [ "$TAIL_HELPER_EXIT_CODE" -ne 0 ]; then
+  HANDOFF_OUTCOME="tail_and_clipboard_failed"
+else
+  HANDOFF_OUTCOME="clipboard_failed"
 fi
 
-exit "$rc"
+WORKFLOW_EXIT_CODE="$COMMAND_EXIT_CODE"
+if [ "$COMMAND_EXIT_CODE" -eq 0 ] && [ "$HANDOFF_EXIT_CODE" -ne 0 ] && [ "$STRICT" = "1" ]; then
+  WORKFLOW_EXIT_CODE="$HANDOFF_EXIT_CODE"
+fi
+
+if [ "$COMMAND_EXIT_CODE" -ne 0 ] && [ "$HANDOFF_EXIT_CODE" -ne 0 ]; then
+  WORKFLOW_OUTCOME="command_and_handoff_failed"
+  WORKFLOW_MARKER="CGRUN_WORKFLOW_FAILED"
+elif [ "$COMMAND_EXIT_CODE" -ne 0 ]; then
+  WORKFLOW_OUTCOME="command_failed"
+  WORKFLOW_MARKER="CGRUN_WORKFLOW_FAILED"
+elif [ "$HANDOFF_EXIT_CODE" -ne 0 ] && [ "$STRICT" = "1" ]; then
+  WORKFLOW_OUTCOME="handoff_failed"
+  WORKFLOW_MARKER="CGRUN_WORKFLOW_FAILED"
+elif [ "$HANDOFF_EXIT_CODE" -ne 0 ]; then
+  WORKFLOW_OUTCOME="handoff_degraded"
+  WORKFLOW_MARKER="CGRUN_WORKFLOW_DEGRADED"
+else
+  WORKFLOW_OUTCOME="success"
+  WORKFLOW_MARKER="CGRUN_WORKFLOW_OK"
+fi
+
+printf '%s\n' "RESULT: CGRUN_AUTOCOPY_ALWAYS_DONE clipboard_exit_code=$CLIPBOARD_EXIT_CODE mode=$COPY_MODE source=$COPY_SOURCE helper_exit_code=$TAIL_HELPER_EXIT_CODE tee_exit_code=$TEE_EXIT_CODE command_exit_code=$COMMAND_EXIT_CODE"
+printf '%s\n' "RESULT: CGRUN_AUTO_TAIL_DONE handoff_exit_code=$HANDOFF_EXIT_CODE command_exit_code=$COMMAND_EXIT_CODE helper_exit_code=$TAIL_HELPER_EXIT_CODE clipboard_exit_code=$CLIPBOARD_EXIT_CODE"
+printf '%s\n' "== cg workflow completion =="
+printf '%s\n' "workflow_outcome=$WORKFLOW_OUTCOME"
+printf '%s\n' "chat_lane=$CHAT_LANE"
+printf '%s\n' "task=$TASK_LABEL"
+printf '%s\n' "run_id=$RUN_ID"
+printf '%s\n' "command_exit_code=$COMMAND_EXIT_CODE"
+printf '%s\n' "handoff_outcome=$HANDOFF_OUTCOME"
+printf '%s\n' "clipboard_exit_code=$CLIPBOARD_EXIT_CODE"
+printf '%s\n' "workflow_exit_code=$WORKFLOW_EXIT_CODE"
+printf 'RESULT: %s outcome=%s chat_lane=%s task=%s run_id=%s command_exit_code=%s handoff_outcome=%s workflow_exit_code=%s\n' \
+  "$WORKFLOW_MARKER" "$WORKFLOW_OUTCOME" "$CHAT_LANE" "$TASK_LABEL" "$RUN_ID" "$COMMAND_EXIT_CODE" "$HANDOFF_OUTCOME" "$WORKFLOW_EXIT_CODE"
+
+exit "$WORKFLOW_EXIT_CODE"
