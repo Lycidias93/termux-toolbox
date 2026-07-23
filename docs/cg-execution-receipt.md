@@ -55,6 +55,27 @@ RESULT: CGRUN_WORKFLOW_DEGRADED outcome=handoff_degraded ...
 
 The receipt contains only sanitized identifiers and classification metadata. `possible|sensitive` still use the redacted marker handoff; the receipt is appended after redaction and does not reintroduce raw command or payload content.
 
+## Installed runtime contract
+
+The repository wrapper depends on the existing local runtime core and tail helper:
+
+- `$PREFIX/bin/cgrun.autoclip-v93-real`
+- `$PREFIX/bin/cgtail-autoclip-v93`
+
+`install.sh` checks both dependencies before modifying any installed toolbox file. A missing or non-executable dependency blocks the installation with `TERMUX_TOOLBOX_INSTALL_BLOCKED`.
+
+After installation, `maintenance/verify-installed-cg-runtime.sh` verifies:
+
+- required runtime files exist, are non-empty, executable, LF-only, and syntactically valid where applicable
+- the installed `cgrun` contains the v9.5 execution-receipt marker and required completion fields
+- installed `cgrun` and `cg-lane.sh` exactly match the checked-out repository files by SHA-256
+
+The guarded maintenance workflow invokes this verifier after update and installation. Expected installed-runtime marker:
+
+```text
+RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0
+```
+
 ## Verification
 
 `verify/verify-cg-execution-receipt.sh` covers:
