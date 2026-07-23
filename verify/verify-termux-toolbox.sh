@@ -92,8 +92,8 @@ else
   fail=1
 fi
 
-if [[ -x verify/verify-cg-execution-receipt.sh ]]; then
-  if verify/verify-cg-execution-receipt.sh; then
+if [[ -f verify/verify-cg-execution-receipt.sh ]]; then
+  if bash verify/verify-cg-execution-receipt.sh; then
     echo "PASS cg_execution_receipt_contract"
   else
     echo "FAIL cg_execution_receipt_contract"
