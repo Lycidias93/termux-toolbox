@@ -29,19 +29,18 @@ install -m 0755 "$CG_LANE" "$BIN_DIR/cg-lane.sh"
   printf '%s\n' '    ln -sfn "$log" "$out/latest.log"'
   printf '%s\n' '    exit 7'
   printf '%s\n' '    ;;'
-  printf '%s\n' '  run-wrapper)'
-  printf '%s\n' '    shift'
+  printf '%s\n' '  ok)'
+  printf '%s\n' '    printf "%s\n" "RESULT: PAYLOAD_OK" > "$log"'
+  printf '%s\n' '    ln -sfn "$log" "$out/latest.log"'
+  printf '%s\n' '    exit 0'
+  printf '%s\n' '    ;;'
+  printf '%s\n' '  *)'
   printf '%s\n' '    set +e'
   printf '%s\n' '    bash -lc "${1:-:}" > "$log" 2>&1'
   printf '%s\n' '    exit_code=$?'
   printf '%s\n' '    set -e'
   printf '%s\n' '    ln -sfn "$log" "$out/latest.log"'
   printf '%s\n' '    exit "$exit_code"'
-  printf '%s\n' '    ;;'
-  printf '%s\n' '  *)'
-  printf '%s\n' '    printf "%s\n" "RESULT: PAYLOAD_OK" > "$log"'
-  printf '%s\n' '    ln -sfn "$log" "$out/latest.log"'
-  printf '%s\n' '    exit 0'
   printf '%s\n' '    ;;'
   printf '%s\n' 'esac'
 } > "$BIN_DIR/cgrun.autoclip-v93-real"
@@ -111,9 +110,9 @@ CG_LANE_STATE_DIR="$STATE_DIR" CG_OUTPUT_DIR="$OUT_DIR" CG_TEST_CLIPBOARD="$CLIP
 lane_output="$TMP_ROOT/lane.out"
 PATH="$BIN_DIR:$PATH" PREFIX="$PREFIX_DIR" HOME="$HOME_DIR" \
 CG_LANE_STATE_DIR="$STATE_DIR" CG_OUTPUT_DIR="$OUT_DIR" CG_TEST_CLIPBOARD="$CLIPBOARD" \
-CGRUN_TASK_LABEL="run-wrapper" \
   "$BIN_DIR/cg-lane.sh" run-file "$artifact" VERIFY pi4-takeout > "$lane_output"
 
+grep -Fq 'RESULT: PI4_TAKEOUT_VERIFY_OK' "$CLIPBOARD"
 grep -Fq '== cg multilane completion ==' "$lane_output"
 grep -Fq 'chat_lane=chat-takeout' "$lane_output"
 grep -Fq 'task=pi4_takeout_verify.sh' "$lane_output"
