@@ -29,7 +29,7 @@ Generic `rc=<n>` fields are not used by the `CGRUN_*` completion markers. Exit v
 - `handoff_exit_code`: effective AutoCopy handoff result
 - `workflow_exit_code`: final shell status returned by `cgrun`
 
-Existing `RESULT:` marker parsing remains valid. The marker name now communicates `OK`, `DEGRADED`, or `FAILED`, while `outcome=` provides the specific reason.
+Existing `RESULT:` marker parsing remains valid. The marker name communicates `OK`, `DEGRADED`, or `FAILED`, while `outcome=` provides the specific reason.
 
 ## Final markers
 
@@ -57,18 +57,27 @@ The receipt contains only sanitized identifiers and classification metadata. `po
 
 ## Installed runtime contract
 
-The repository wrapper depends on the existing local runtime core and tail helper:
+The repository owns the complete active runtime:
+
+- `$PREFIX/bin/cgrun`
+- `$PREFIX/bin/cgrun-core-v95`
+- `$PREFIX/bin/cgtail-core-v95`
+- `$PREFIX/bin/cg-lane.sh`
+- `$PREFIX/bin/cg-run-file`
+
+The historical filenames remain as repository-owned compatibility shims only:
 
 - `$PREFIX/bin/cgrun.autoclip-v93-real`
 - `$PREFIX/bin/cgtail-autoclip-v93`
 
-`install.sh` checks both dependencies before modifying any installed toolbox file. A missing or non-executable dependency blocks the installation with `TERMUX_TOOLBOX_INSTALL_BLOCKED`.
+The active `cgrun` wrapper calls the v9.5 native core files directly. It no longer delegates execution to an unmanaged restored v9.3 core. `install.sh` validates all source files before copying them and then runs the installed-runtime verifier.
 
 After installation, `maintenance/verify-installed-cg-runtime.sh` verifies:
 
-- required runtime files exist, are non-empty, executable, LF-only, and syntactically valid where applicable
-- the installed `cgrun` contains the v9.5 execution-receipt marker and required completion fields
-- installed `cgrun` and `cg-lane.sh` exactly match the checked-out repository files by SHA-256
+- every runtime file exists, is non-empty, executable, LF-only, and syntactically valid
+- the installed wrapper and native cores contain their required v9.5 markers
+- no ambiguous `rc=` field exists in a `CGRUN_*` result marker
+- every installed runtime file exactly matches the checked-out repository source by SHA-256
 
 The guarded maintenance workflow invokes this verifier after update and installation. Expected installed-runtime marker:
 
@@ -76,18 +85,24 @@ The guarded maintenance workflow invokes this verifier after update and installa
 RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0
 ```
 
+## Original artifact task binding
+
+When `cg-run-file` normalizes a native Termux shebang, it uses a unique temporary directory but preserves the original artifact basename. The receipt therefore reports the user-visible artifact name rather than `cg-run-file-normalized.*`.
+
 ## Verification
 
 `verify/verify-cg-execution-receipt.sh` covers:
 
-- successful direct `cgrun`
-- failed direct `cgrun`
-- `cg-run-file` lane and artifact binding
+- successful direct `cgrun` through the repository-owned core
+- failed direct `cgrun` with preserved command exit code
+- explicit original artifact task binding
 - receipt presence in the clipboard handoff
 - absence of ambiguous `rc=` fields in `CGRUN_*` result markers
+
+`verify/verify-cg-run-file-termux-shebang.sh` additionally verifies that native Termux shebang normalization preserves the original artifact basename.
 
 Expected marker:
 
 ```text
-RESULT: CG_EXECUTION_RECEIPT_VERIFY_DONE
+RESULT: CG_EXECUTION_RECEIPT_VERIFY_DONE outcome=success workflow_exit_code=0
 ```
