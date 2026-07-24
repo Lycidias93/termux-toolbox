@@ -30,6 +30,11 @@ the outer run ID. The receipt sanitizer canonicalized that value to lowercase `v
 the outer completion and receipt with different run IDs. `cg-run-file` now canonicalizes the
 mode to `verify|run` before the lane creates the run ID and rejects all other values.
 
+The aggregate verifier also changed every shebang-bearing source file to executable with
+`chmod +x`. Git recorded those mutations as `100644 -> 100755` mode-only changes even though
+all file contents remained byte-identical. That made later guarded updates stop on a dirty
+worktree created by the verifier itself.
+
 ## Fixed architecture
 
 The repository now owns the full active runtime:
@@ -49,6 +54,11 @@ original artifact basename. Receipts therefore identify the user-visible artifac
 normalization directory. The run mode is canonicalized before run-ID creation, so the lane,
 core metadata, receipt, AutoCopy handoff, and outer completion share one byte-identical run ID.
 
+Repository verification is read-only with respect to tracked source files. Shell checks use
+`bash -n`, nested verifier scripts are invoked explicitly with `bash`, and the aggregate
+verifier compares Git status before and after execution. Any verifier-created worktree change
+is a hard failure.
+
 ## Verification
 
 `verify/verify-cg-execution-receipt.sh` checks:
@@ -65,6 +75,9 @@ core metadata, receipt, AutoCopy handoff, and outer completion share one byte-id
 `verify/verify-cg-run-file-termux-shebang.sh` checks that shebang normalization preserves the
 original basename, canonicalizes uppercase, mixed-case, and omitted modes to `verify`, and
 rejects unsupported run modes before they can create a divergent run ID.
+
+`verify/verify-termux-toolbox.sh` checks syntax without changing executable bits and emits
+`PASS verifier_worktree_immutable` only when its complete run leaves Git status unchanged.
 
 `maintenance/verify-installed-cg-runtime.sh` checks syntax, executable state, markers, and
 SHA-256 parity for the wrapper, both native cores, compatibility shims, lane runtime, and
