@@ -1,0 +1,47 @@
+# cgrun v9.5 native core and original task binding
+
+## Root cause
+
+The execution-receipt wrapper originally delegated every run to the pre-existing local file
+`$PREFIX/bin/cgrun.autoclip-v93-real`. The repository installer checked that file but did not
+own or replace it. A successful wrapper installation therefore kept the old v9.3 execution
+core active. Its legacy completion marker `RESULT: CGRUN_DONE rc=<n>` remained visible inside
+otherwise valid v9.5 output.
+
+`cg-run-file` also normalized native Termux shebangs into a temporary file named
+`cg-run-file-normalized.*`. The lane layer derived the receipt task from that temporary
+execution path, so the original artifact basename was lost.
+
+## Fixed architecture
+
+The repository now owns the full active runtime:
+
+- `bin/cgrun`: receipt, AutoCopy, lane identity, and workflow result
+- `bin/cgrun-core-v95`: command execution, log creation, heartbeat, timeout, and named core result
+- `bin/cgtail-core-v95`: bounded dynamic tail output
+- `bin/cgrun.autoclip-v93-real`: compatibility shim only
+- `bin/cgtail-autoclip-v93`: compatibility shim only
+
+The active wrapper calls the v9.5 core files directly. The legacy filenames remain installed
+only so older local callers fail over to the same repository-owned implementation rather than
+an unmanaged restored file.
+
+For normalized scripts, `cg-run-file` creates a unique temporary directory but keeps the
+original artifact basename. Receipts therefore identify the user-visible artifact, not the
+normalization directory.
+
+## Verification
+
+`verify/verify-cg-execution-receipt.sh` checks:
+
+- direct success and failure through the repository-owned core
+- absence of generic `rc=` fields in `CGRUN_*` result markers
+- original artifact task binding
+- receipt presence in the clipboard handoff
+
+`verify/verify-cg-run-file-termux-shebang.sh` checks that shebang normalization preserves the
+original basename.
+
+`maintenance/verify-installed-cg-runtime.sh` checks syntax, executable state, markers, and
+SHA-256 parity for the wrapper, both native cores, compatibility shims, lane runtime, and
+`cg-run-file`.
