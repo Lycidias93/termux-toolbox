@@ -4,8 +4,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
 BIN_DIR="$PREFIX_DIR/bin"
-CORE="$BIN_DIR/cgrun.autoclip-v93-real"
-TAIL_HELPER="$BIN_DIR/cgtail-autoclip-v93"
 RUNTIME_VERIFY="$ROOT/maintenance/verify-installed-cg-runtime.sh"
 
 fail() {
@@ -14,8 +12,19 @@ fail() {
   exit 20
 }
 
-[[ -x "$CORE" ]] || fail "cgrun_core_missing path=$CORE"
-[[ -x "$TAIL_HELPER" ]] || fail "cgtail_helper_missing path=$TAIL_HELPER"
+for source_file in \
+  "$ROOT/bin/cgrun" \
+  "$ROOT/bin/cgrun-core-v95" \
+  "$ROOT/bin/cgtail-core-v95" \
+  "$ROOT/bin/cgrun.autoclip-v93-real" \
+  "$ROOT/bin/cgtail-autoclip-v93" \
+  "$ROOT/bin/cg-lane.sh" \
+  "$ROOT/bin/cg-run-file"
+do
+  [[ -s "$source_file" ]] || fail "runtime_source_missing path=$source_file"
+  bash -n "$source_file" || fail "runtime_source_syntax path=$source_file"
+done
+
 [[ -s "$RUNTIME_VERIFY" ]] || fail "runtime_verifier_missing path=$RUNTIME_VERIFY"
 bash -n "$RUNTIME_VERIFY"
 

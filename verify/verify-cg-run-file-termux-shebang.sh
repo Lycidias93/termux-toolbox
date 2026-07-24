@@ -18,6 +18,7 @@ mkdir -p "$FAKE_BIN" "$CAPTURE"
   printf '%s\n' '[ -f "$script" ] || exit 92'
   printf '%s\n' 'printf '\''%s\n'\'' "$(head -n 1 "$script")" > "$CG_RUN_FILE_CAPTURE/first_line"'
   printf '%s\n' 'printf '\''%s\n'\'' "$script" > "$CG_RUN_FILE_CAPTURE/script_path"'
+  printf '%s\n' 'printf '\''%s\n'\'' "$(basename "$script")" > "$CG_RUN_FILE_CAPTURE/task_basename"'
   printf '%s\n' 'printf '\''%s\n'\'' "${3:-}" > "$CG_RUN_FILE_CAPTURE/mode"'
   printf '%s\n' 'printf '\''%s\n'\'' "${4:-}" > "$CG_RUN_FILE_CAPTURE/scope"'
 } > "$FAKE_BIN/cg-lane.sh"
@@ -29,24 +30,25 @@ run_case() {
 
   printf '%s\nprintf "RESULT: %s_DONE\\n"\n' "$source_shebang" "$name" > "$script"
   chmod 0755 "$script"
-  rm -f "$CAPTURE/first_line" "$CAPTURE/script_path" "$CAPTURE/mode" "$CAPTURE/scope"
+  rm -f "$CAPTURE/first_line" "$CAPTURE/script_path" "$CAPTURE/task_basename" "$CAPTURE/mode" "$CAPTURE/scope"
 
   TMPDIR="$TMP_ROOT" PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
     bash "$WRAPPER" "$script" verify pixel
 
-  [ "$(cat "$CAPTURE/first_line")" = "$expected_shebang" ] || {
-    printf 'FAIL normalized_shebang case=%s got=%s expected=%s\n' \
-      "$name" "$(cat "$CAPTURE/first_line")" "$expected_shebang"
+  [ "$(cat "$CAPTURE/first_line")" = "$expected_shebang" ] || return 1
+  [ "$(cat "$CAPTURE/task_basename")" = "$(basename "$script")" ] || {
+    printf 'FAIL task_basename_changed case=%s got=%s expected=%s\n' \
+      "$name" "$(cat "$CAPTURE/task_basename")" "$(basename "$script")"
     return 1
   }
   [ "$(cat "$CAPTURE/mode")" = "verify" ] || return 1
   [ "$(cat "$CAPTURE/scope")" = "pixel" ] || return 1
-  printf 'PASS normalized_shebang case=%s source=%s target=%s\n' \
-    "$name" "$source_shebang" "$expected_shebang"
+  printf 'PASS normalized_shebang_and_task case=%s source=%s target=%s task=%s\n' \
+    "$name" "$source_shebang" "$expected_shebang" "$(basename "$script")"
 }
 
 run_case native_termux_bash '#!/data/data/com.termux/files/usr/bin/bash' '#!/usr/bin/env bash'
 run_case native_termux_sh '#!/data/data/com.termux/files/usr/bin/sh' '#!/usr/bin/env sh'
 run_case portable_env_bash '#!/usr/bin/env bash' '#!/usr/bin/env bash'
 
-echo 'RESULT: CG_RUN_FILE_TERMUX_SHEBANG_VERIFY_DONE rc=0'
+printf '%s\n' 'RESULT: CG_RUN_FILE_TERMUX_SHEBANG_VERIFY_DONE outcome=success workflow_exit_code=0'

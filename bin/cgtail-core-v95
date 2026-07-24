@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# AUTOCLIP_V95_CGTAIL_CORE
+set -euo pipefail
+
+HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
+OUT_DIR="${CG_OUTPUT_DIR:-$HOME_DIR/.chatgpt-output}"
+LATEST="$OUT_DIR/latest.log"
+REQUESTED="${1:-dynamic}"
+DYNAMIC_MIN="${CGTAIL_DYNAMIC_MIN_LINES:-40}"
+DYNAMIC_MAX="${CGTAIL_DYNAMIC_MAX_LINES:-160}"
+MAX_BYTES="${CGTAIL_MAX_BYTES:-30000}"
+
+is_uint() {
+  case "${1:-}" in
+    ''|*[!0-9]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  printf 'RESULT: CGTAIL_FAILED outcome=%s command_exit_code=1\n' "$1" >&2
+  exit 1
+}
+
+[ -e "$LATEST" ] || fail "latest_log_missing path=$LATEST"
+RESOLVED="$(readlink -f "$LATEST" 2>/dev/null || printf '%s\n' "$LATEST")"
+[ -f "$RESOLVED" ] || fail "resolved_log_missing path=$RESOLVED"
+
+is_uint "$DYNAMIC_MIN" || fail "dynamic_min_invalid value=$DYNAMIC_MIN"
+is_uint "$DYNAMIC_MAX" || fail "dynamic_max_invalid value=$DYNAMIC_MAX"
+is_uint "$MAX_BYTES" || fail "max_bytes_invalid value=$MAX_BYTES"
+[ "$DYNAMIC_MIN" -le "$DYNAMIC_MAX" ] || fail "dynamic_range_invalid"
+
+TOTAL_LINES="$(wc -l < "$RESOLVED" | tr -d '[:space:]')"
+TOTAL_BYTES="$(wc -c < "$RESOLVED" | tr -d '[:space:]')"
+MODE="explicit"
+
+if [ "$REQUESTED" = "dynamic" ]; then
+  MODE="dynamic"
+  if [ "$TOTAL_LINES" -lt "$DYNAMIC_MIN" ]; then
+    SELECTED="$TOTAL_LINES"
+  elif [ "$TOTAL_LINES" -gt "$DYNAMIC_MAX" ]; then
+    SELECTED="$DYNAMIC_MAX"
+  else
+    SELECTED="$TOTAL_LINES"
+  fi
+else
+  is_uint "$REQUESTED" || fail "requested_lines_invalid value=$REQUESTED"
+  SELECTED="$REQUESTED"
+fi
+
+TMP_BASE="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+mkdir -p "$TMP_BASE"
+TMP="$(mktemp "$TMP_BASE/cgtail-v95.XXXXXX")"
+trap 'rm -f "$TMP"' EXIT
+
+tail -n "$SELECTED" "$RESOLVED" > "$TMP"
+CURRENT_BYTES="$(wc -c < "$TMP" | tr -d '[:space:]')"
+
+while [ "$CURRENT_BYTES" -gt "$MAX_BYTES" ] && [ "$SELECTED" -gt 1 ]; do
+  if [ "$SELECTED" -gt 10 ]; then
+    SELECTED=$((SELECTED - 10))
+  else
+    SELECTED=$((SELECTED - 1))
+  fi
+  tail -n "$SELECTED" "$RESOLVED" > "$TMP"
+  CURRENT_BYTES="$(wc -c < "$TMP" | tr -d '[:space:]')"
+done
+
+printf '%s\n' '== cgtail =='
+date '+%Y-%m-%dT%H:%M:%S%z'
+printf 'version=v9.5-native-core\n'
+printf 'mode=%s\n' "$MODE"
+printf 'requested_lines=%s\n' "$REQUESTED"
+printf 'selected_lines=%s\n' "$SELECTED"
+printf 'dynamic_min_lines=%s\n' "$DYNAMIC_MIN"
+printf 'dynamic_max_lines=%s\n' "$DYNAMIC_MAX"
+printf 'max_bytes=%s\n' "$MAX_BYTES"
+printf 'requested_log=%s\n' "$LATEST"
+printf 'resolved=%s\n' "$RESOLVED"
+printf 'bytes=%s\n' "$TOTAL_BYTES"
+printf 'lines=%s\n' "$TOTAL_LINES"
+printf '\n'
+cat "$TMP"
+printf '\nRESULT: CGTAIL_DONE outcome=success command_exit_code=0\n'
