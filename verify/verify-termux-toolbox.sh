@@ -7,7 +7,9 @@ cd "$ROOT"
 TMP_BASE="${TMPDIR:-$HOME/.cache/tmp}"
 mkdir -p "$TMP_BASE"
 SECRET_SCAN_FILE="$(mktemp "$TMP_BASE/termux-toolbox-secret-scan.XXXXXX")"
-cleanup() { rm -f "$SECRET_SCAN_FILE"; }
+STATUS_BEFORE="$(mktemp "$TMP_BASE/termux-toolbox-status-before.XXXXXX")"
+STATUS_AFTER="$(mktemp "$TMP_BASE/termux-toolbox-status-after.XXXXXX")"
+cleanup() { rm -f "$SECRET_SCAN_FILE" "$STATUS_BEFORE" "$STATUS_AFTER"; }
 trap cleanup EXIT
 
 echo "scope=termux-toolbox-verify"
@@ -16,6 +18,11 @@ echo "tmp_base=$TMP_BASE"
 echo
 
 fail=0
+inside_git=no
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  inside_git=yes
+  git status --porcelain=v2 --untracked-files=all > "$STATUS_BEFORE"
+fi
 
 while IFS= read -r -d '' f; do
   rel="${f#./}"
@@ -24,20 +31,17 @@ while IFS= read -r -d '' f; do
     echo "FAIL crlf file=$rel"
     fail=1
   fi
-  if head -n 1 "$f" | grep -q '^#!'; then
-    chmod +x "$f"
-    if head -n 1 "$f" | grep -Eq 'bash|sh'; then
-      if ! bash -n "$f" 2>/dev/null; then
-        echo "FAIL syntax file=$rel"
-        fail=1
-      else
-        echo "PASS syntax file=$rel"
-      fi
+  if head -n 1 "$f" | grep -Eq '^#!.*(bash|sh)([[:space:]]|$)'; then
+    if ! bash -n "$f" 2>/dev/null; then
+      echo "FAIL syntax file=$rel"
+      fail=1
+    else
+      echo "PASS syntax file=$rel"
     fi
   fi
 done < <(find . -type f ! -path './.git/*' -print0)
 
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+if [ "$inside_git" = "yes" ]; then
   git diff --check
 fi
 
@@ -68,8 +72,8 @@ do
   fi
 done
 
-if [[ -x verify/verify-cg-lane-secret-classes.sh ]]; then
-  if verify/verify-cg-lane-secret-classes.sh; then
+if [[ -f verify/verify-cg-lane-secret-classes.sh ]]; then
+  if bash verify/verify-cg-lane-secret-classes.sh; then
     echo "PASS cg_lane_secret_class_contract"
   else
     echo "FAIL cg_lane_secret_class_contract"
@@ -80,8 +84,8 @@ else
   fail=1
 fi
 
-if [[ -x verify/verify-cg-run-file-termux-shebang.sh ]]; then
-  if verify/verify-cg-run-file-termux-shebang.sh; then
+if [[ -f verify/verify-cg-run-file-termux-shebang.sh ]]; then
+  if bash verify/verify-cg-run-file-termux-shebang.sh; then
     echo "PASS cg_run_file_termux_shebang_contract"
   else
     echo "FAIL cg_run_file_termux_shebang_contract"
@@ -102,6 +106,16 @@ if [[ -f verify/verify-cg-execution-receipt.sh ]]; then
 else
   echo "FAIL cg_execution_receipt_verify_missing"
   fail=1
+fi
+
+if [ "$inside_git" = "yes" ]; then
+  git status --porcelain=v2 --untracked-files=all > "$STATUS_AFTER"
+  if cmp -s "$STATUS_BEFORE" "$STATUS_AFTER"; then
+    echo "PASS verifier_worktree_immutable"
+  else
+    echo "FAIL verifier_mutated_worktree"
+    fail=1
+  fi
 fi
 
 if [ "$fail" -ne 0 ]; then
