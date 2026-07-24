@@ -39,6 +39,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 | `docs/troubleshooting.md` | Common failure cases and checks |
 | `docs/reference/termux-package-baseline.md` | Sanitized package baseline reference |
 | `docs/heimnetz-migration-policy.md` | Rules for moving generic content out of a private Heimnetz repo |
+| `docs/cgrun-v95-native-core.md` | Explains the repository-owned v9.5 core and original task binding |
 
 ### Templates and checks
 
@@ -134,32 +135,17 @@ Do not automatically sync private overlays, logs, backups, or host-specific note
 
 See `LICENSE`.
 
-<!-- AUTOCLIP_V933_TOOLBOX_README_START -->
-## AutoClip v9.3.3 polish helpers
+<!-- AUTOCLIP_V95_NATIVE_CORE_START -->
+## AutoClip v9.5 native core
 
-This toolbox documents the local Pixel/Termux helper layer for the Heimnetz ChatGPT copy-window workflow. The core runtime contract remains v9.3-auto-dynamic-cgtail; v9.3.3 adds helper commands only.
+The active runtime is fully repository-owned. `bin/cgrun` calls `bin/cgrun-core-v95` and `bin/cgtail-core-v95` directly; it no longer delegates execution to an unmanaged restored v9.3 core.
 
-Commands:
-- autoclip-doctor: checks command paths, wrappers, shell state, latest.log, and clean cgtail handoff link.
-- cgarchive: manual archive helper for old cgrun logs; run dry-run before apply.
-- cgrun-noclip: no-clipboard wrapper for private/sensitive runs.
+The historical filenames `cgrun.autoclip-v93-real` and `cgtail-autoclip-v93` remain compatibility shims only. Installing the toolbox replaces any stale local copies with shims that route to the repository-owned v9.5 implementation.
 
-Known guard interaction: a literal nested cgrun command name inside a cgrun payload can trigger the recursive guard with rc=12 before latest.log is updated. For diagnostics, use a script file or construct command names at runtime.
-<!-- AUTOCLIP_V933_TOOLBOX_README_END -->
+Execution Receipt v1 uses named exit-code fields and never emits a generic `rc=<n>` field in a `CGRUN_*` completion marker. Native Termux shebang normalization keeps the original artifact basename, so receipts report the user-visible task rather than a `cg-run-file-normalized.*` temporary name.
 
-<!-- AUTOCLIP_V934_TOOLBOX_README_START -->
-## AutoClip v9.3.4 stale-tail guard
-
-v9.3.4-rc12-stale-tail-fix is the Pixel/Termux runtime guard layer above the v9.3 auto dynamic cgtail core. It keeps the normal cgrun -> cgtail clipboard flow unchanged.
-
-Behavior: if the real cgrun exits nonzero before latest.log changes, the wrapper writes a fresh .chatgpt-output/cgrun_guard_*.log, points latest.log at it, and runs dynamic cgtail against that guard log. This prevents the Android clipboard from receiving stale output from the previous successful run.
-
-Verify markers:
-- autoclip-status shows version=v9.3.4-rc12-stale-tail-fix
-- rc12_stale_latest_guard=enabled
-- guard logs contain CGRUN_STALE_LATEST_GUARD_LOG_DONE
-- autoclip-doctor remains PASS
-<!-- AUTOCLIP_V934_TOOLBOX_README_END -->
+See `docs/cgrun-v95-native-core.md` and `docs/cg-execution-receipt.md`.
+<!-- AUTOCLIP_V95_NATIVE_CORE_END -->
 
 <!-- TOOLBOX_ARTIFACT_LANE_BINDING_V2_20260710_START -->
 ## Artifact and lane-binding guard v2
