@@ -12,6 +12,12 @@ otherwise valid v9.5 output.
 `cg-run-file-normalized.*`. The lane layer derived the receipt task from that temporary
 execution path, so the original artifact basename was lost.
 
+The first native-core regression was correct when run from a clean shell, but it inherited
+`CG_RUN_*` and `CG_LANE_*` variables when invoked from an outer `cg-run-file` workflow. That
+made its direct-run cases identify the outer controller task and lane instead of the isolated
+test values. Because the first assertion failed under `set -e`, the regression stopped before
+printing its PASS markers.
+
 ## Fixed architecture
 
 The repository now owns the full active runtime:
@@ -38,6 +44,9 @@ normalization directory.
 - absence of generic `rc=` fields in `CGRUN_*` result markers
 - original artifact task binding
 - receipt presence in the clipboard handoff
+- isolation from inherited outer `CG_RUN_*` and `CG_LANE_*` values by running each case through
+  a minimal `env -i` environment
+- diagnostic capture output on any future assertion failure
 
 `verify/verify-cg-run-file-termux-shebang.sh` checks that shebang normalization preserves the
 original basename.
