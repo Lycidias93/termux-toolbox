@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# AUTOCLIP_V95_CGRUN_CORE
+set -uo pipefail
+
+HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
+OUT_DIR="${CG_OUTPUT_DIR:-$HOME_DIR/.chatgpt-output}"
+TIMEOUT_SECONDS="${CGRUN_TIMEOUT_SECONDS:-0}"
+HEARTBEAT_SECONDS="${CGRUN_HEARTBEAT_SECONDS:-10}"
+HEARTBEAT_TAIL_LINES="${CGRUN_HEARTBEAT_TAIL_LINES:-12}"
+TASK_LABEL="${CG_RUN_TASK:-${CGRUN_TASK_LABEL:-direct-cgrun}}"
+RUN_ID="${CG_RUN_ID:-none}"
+
+is_uint() {
+  case "${1:-}" in
+    ''|*[!0-9]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  printf 'RESULT: CGRUN_CORE_FAILED outcome=%s command_exit_code=2\n' "$1" >&2
+  exit 2
+}
+
+[ "$#" -gt 0 ] || fail "command_missing"
+is_uint "$TIMEOUT_SECONDS" || fail "timeout_invalid value=$TIMEOUT_SECONDS"
+is_uint "$HEARTBEAT_SECONDS" || fail "heartbeat_invalid value=$HEARTBEAT_SECONDS"
+is_uint "$HEARTBEAT_TAIL_LINES" || fail "heartbeat_tail_invalid value=$HEARTBEAT_TAIL_LINES"
+
+mkdir -p "$OUT_DIR"
+STAMP="$(date +%Y%m%d_%H%M%S)"
+LOG="$OUT_DIR/cgrun_${STAMP}_$$.log"
+START_EPOCH="$(date +%s)"
+TIMED_OUT="no"
+COMMAND_TEXT="$*"
+
+{
+  printf '%s\n' '== cgrun metadata =='
+  date -Is 2>/dev/null || date
+  printf 'pwd=%s\n' "$PWD"
+  printf 'log=%s\n' "$LOG"
+  printf 'timeout_seconds=%s\n' "$TIMEOUT_SECONDS"
+  printf 'heartbeat_seconds=%s\n' "$HEARTBEAT_SECONDS"
+  printf 'task=%s\n' "$TASK_LABEL"
+  printf 'run_id=%s\n' "$RUN_ID"
+  printf '\n'
+} > "$LOG"
+
+if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
+  if ! command -v timeout >/dev/null 2>&1; then
+    fail "timeout_command_missing"
+  fi
+  timeout --foreground --signal=TERM --kill-after=5 "${TIMEOUT_SECONDS}s" \
+    bash -lc "$COMMAND_TEXT" >> "$LOG" 2>&1 &
+else
+  bash -lc "$COMMAND_TEXT" >> "$LOG" 2>&1 &
+fi
+PAYLOAD_PID=$!
+
+emit_heartbeat() {
+  local now elapsed bytes lines
+  now="$(date +%s)"
+  elapsed=$((now - START_EPOCH))
+  bytes="$(wc -c < "$LOG" | tr -d '[:space:]')"
+  lines="$(wc -l < "$LOG" | tr -d '[:space:]')"
+
+  printf '\n'
+  printf '%s\n' '== cgrun heartbeat =='
+  date -Is 2>/dev/null || date
+  printf 'phase=payload_running pid=%s alive=yes elapsed_seconds=%s log_bytes=%s log_lines=%s\n' \
+    "$PAYLOAD_PID" "$elapsed" "$bytes" "$lines"
+  printf '%s\n' '-- log tail --'
+  tail -n "$HEARTBEAT_TAIL_LINES" "$LOG" 2>/dev/null || true
+}
+
+if [ "$HEARTBEAT_SECONDS" -gt 0 ]; then
+  emit_heartbeat
+fi
+
+NEXT_HEARTBEAT=$HEARTBEAT_SECONDS
+while kill -0 "$PAYLOAD_PID" 2>/dev/null; do
+  sleep 1
+  if [ "$HEARTBEAT_SECONDS" -gt 0 ]; then
+    NOW="$(date +%s)"
+    ELAPSED=$((NOW - START_EPOCH))
+    if [ "$ELAPSED" -ge "$NEXT_HEARTBEAT" ]; then
+      emit_heartbeat
+      NEXT_HEARTBEAT=$((NEXT_HEARTBEAT + HEARTBEAT_SECONDS))
+    fi
+  fi
+done
+
+set +e
+wait "$PAYLOAD_PID"
+COMMAND_EXIT_CODE=$?
+set -e
+
+case "$COMMAND_EXIT_CODE" in
+  124|137)
+    if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
+      TIMED_OUT="yes"
+    fi
+    ;;
+esac
+
+ln -sfn "$LOG" "$OUT_DIR/latest.log" 2>/dev/null || cp "$LOG" "$OUT_DIR/latest.log"
+
+if [ "$TIMED_OUT" = "yes" ]; then
+  OUTCOME="timed_out"
+elif [ "$COMMAND_EXIT_CODE" -eq 0 ]; then
+  OUTCOME="success"
+else
+  OUTCOME="command_failed"
+fi
+
+printf '\n'
+printf '%s\n' '== cgrun core result =='
+printf 'command_exit_code=%s\n' "$COMMAND_EXIT_CODE"
+printf 'timed_out=%s\n' "$TIMED_OUT"
+printf 'log=%s\n' "$LOG"
+printf 'latest=%s\n' "$OUT_DIR/latest.log"
+printf 'RESULT: CGRUN_CORE_DONE outcome=%s command_exit_code=%s timed_out=%s\n' \
+  "$OUTCOME" "$COMMAND_EXIT_CODE" "$TIMED_OUT"
+
+exit "$COMMAND_EXIT_CODE"
