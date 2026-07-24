@@ -18,6 +18,12 @@ made its direct-run cases identify the outer controller task and lane instead of
 test values. Because the first assertion failed under `set -e`, the regression stopped before
 printing its PASS markers.
 
+After environment isolation was added, the intentionally failing `exit 7` case still invoked
+the global `ERR` diagnostic trap. `set +e` permits control flow to continue, but it does not
+turn an `ERR` trap into an expected-result handler. The failure case is therefore executed as
+the condition of an `if` statement, where its exit status is captured and asserted explicitly;
+only unexpected failures reach the diagnostic trap.
+
 ## Fixed architecture
 
 The repository now owns the full active runtime:
@@ -41,12 +47,13 @@ normalization directory.
 `verify/verify-cg-execution-receipt.sh` checks:
 
 - direct success and failure through the repository-owned core
+- explicit capture of the expected failure exit code without invoking the unexpected-error trap
 - absence of generic `rc=` fields in `CGRUN_*` result markers
 - original artifact task binding
 - receipt presence in the clipboard handoff
 - isolation from inherited outer `CG_RUN_*` and `CG_LANE_*` values by running each case through
   a minimal `env -i` environment
-- diagnostic capture output on any future assertion failure
+- diagnostic capture output on any future unexpected assertion failure
 
 `verify/verify-cg-run-file-termux-shebang.sh` checks that shebang normalization preserves the
 original basename.
