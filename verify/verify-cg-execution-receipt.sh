@@ -94,16 +94,23 @@ grep -Fq 'scope=pixel' "$CLIPBOARD"
 grep -Fq 'host=pixel' "$CLIPBOARD"
 
 failure_output="$TMP_ROOT/failure.out"
-set +e
-run_clean \
+failure_exit_code=0
+if run_clean \
   CG_RUN_ID=run-failure \
   CG_RUN_MODE=run \
   CGRUN_TASK_LABEL=direct-failure \
   bash "$BIN_DIR/cgrun" "exit 7" > "$failure_output" 2>&1
-failure_exit_code=$?
-set -e
+then
+  printf '%s\n' 'FAIL expected_failure_case_returned_success'
+  exit 1
+else
+  failure_exit_code=$?
+fi
 
-[ "$failure_exit_code" -eq 7 ]
+if [ "$failure_exit_code" -ne 7 ]; then
+  printf 'FAIL expected_failure_exit_code got=%s expected=7\n' "$failure_exit_code"
+  exit 1
+fi
 grep -Fq 'RESULT: CGRUN_CORE_DONE outcome=command_failed command_exit_code=7 timed_out=no' "$failure_output"
 grep -Fq 'RESULT: CGRUN_WORKFLOW_FAILED outcome=command_failed chat_lane=chat-alpha task=direct-failure run_id=run-failure command_exit_code=7 handoff_outcome=success workflow_exit_code=7' "$failure_output"
 grep -Fq 'RESULT: CGRUN_EXECUTION_FAILED outcome=command_failed chat_lane=chat-alpha task=direct-failure run_id=run-failure command_exit_code=7' "$CLIPBOARD"
@@ -143,6 +150,7 @@ fi
 trap - ERR
 printf '%s\n' 'PASS cgrun_native_core_success'
 printf '%s\n' 'PASS cgrun_native_core_failure'
+printf '%s\n' 'PASS cgrun_expected_failure_capture'
 printf '%s\n' 'PASS cgrun_original_task_binding'
 printf '%s\n' 'PASS cgrun_regression_environment_hermetic'
 printf '%s\n' 'RESULT: CG_EXECUTION_RECEIPT_VERIFY_DONE outcome=success workflow_exit_code=0'
