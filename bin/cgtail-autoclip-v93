@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# AUTOCLIP_V95_LEGACY_CGTAIL_COMPAT
+set -euo pipefail
+
+PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
+CORE="$PREFIX_DIR/bin/cgtail-core-v95"
+
+if [ ! -s "$CORE" ]; then
+  printf 'FAIL: v9.5 cgtail core missing path=%s\n' "$CORE" >&2
+  printf 'RESULT: CGTAIL_CORE_COMPAT_FAILED outcome=runtime_missing workflow_exit_code=127\n' >&2
+  exit 127
+fi
+
+exec bash "$CORE" "$@"
