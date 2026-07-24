@@ -7,6 +7,17 @@ script="${1:-}"
   exec bash "$lane_runner" run-file "$@"
 }
 
+mode="${2:-verify}"
+mode="$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')"
+case "$mode" in
+  verify|run) ;;
+  *)
+    printf 'FAIL: run_mode_invalid value=%s allowed=verify|run\n' "$mode" >&2
+    exit 1
+    ;;
+esac
+scope="${3:-}"
+
 first="$(head -n 1 "$script" 2>/dev/null || true)"
 case "$first" in
   '#!/data/data/com.termux/files/usr/bin/bash'|'#!/data/data/com.termux/files/usr/bin/sh')
@@ -28,12 +39,11 @@ case "$first" in
     } > "$normalized"
     chmod 0755 "$normalized"
 
-    shift
     lane_runner="$(command -v cg-lane.sh)"
-    bash "$lane_runner" run-file "$normalized" "$@"
+    bash "$lane_runner" run-file "$normalized" "$mode" "$scope"
     ;;
   *)
     lane_runner="$(command -v cg-lane.sh)"
-    exec bash "$lane_runner" run-file "$@"
+    exec bash "$lane_runner" run-file "$script" "$mode" "$scope"
     ;;
 esac

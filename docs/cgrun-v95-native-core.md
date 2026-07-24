@@ -24,6 +24,12 @@ turn an `ERR` trap into an expected-result handler. The failure case is therefor
 the condition of an `if` statement, where its exit status is captured and asserted explicitly;
 only unexpected failures reach the diagnostic trap.
 
+A fresh Pixel native-core smoke then exposed a final identity mismatch: `cg-run-file` omitted
+its mode argument by default, so `cg-lane.sh` used the uppercase default `VERIFY` when building
+the outer run ID. The receipt sanitizer canonicalized that value to lowercase `verify`, leaving
+the outer completion and receipt with different run IDs. `cg-run-file` now canonicalizes the
+mode to `verify|run` before the lane creates the run ID and rejects all other values.
+
 ## Fixed architecture
 
 The repository now owns the full active runtime:
@@ -40,7 +46,8 @@ an unmanaged restored file.
 
 For normalized scripts, `cg-run-file` creates a unique temporary directory but keeps the
 original artifact basename. Receipts therefore identify the user-visible artifact, not the
-normalization directory.
+normalization directory. The run mode is canonicalized before run-ID creation, so the lane,
+core metadata, receipt, AutoCopy handoff, and outer completion share one byte-identical run ID.
 
 ## Verification
 
@@ -56,7 +63,8 @@ normalization directory.
 - diagnostic capture output on any future unexpected assertion failure
 
 `verify/verify-cg-run-file-termux-shebang.sh` checks that shebang normalization preserves the
-original basename.
+original basename, canonicalizes uppercase, mixed-case, and omitted modes to `verify`, and
+rejects unsupported run modes before they can create a divergent run ID.
 
 `maintenance/verify-installed-cg-runtime.sh` checks syntax, executable state, markers, and
 SHA-256 parity for the wrapper, both native cores, compatibility shims, lane runtime, and
