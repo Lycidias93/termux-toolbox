@@ -96,11 +96,18 @@ bash -n "$BASHRC" || fail "shell_rc_syntax path=$BASHRC"
 chmod 0700 "$probe"
 resolution="$(PATH="$PREFIX_DIR/bin:$PATH" bash --noprofile --rcfile "$BASHRC" -i "$probe" 2>/dev/null)"
 printf '%s\n' "$resolution"
-printf '%s\n' "$resolution" | grep -Fqx 'cgrun_type=file' || fail "cgrun_shell_shadow_present"
-printf '%s\n' "$resolution" | grep -Fqx 'cgtail_type=file' || fail "cgtail_shell_shadow_present"
-printf '%s\n' "$resolution" | grep -Fqx "cgrun_path=$PREFIX_DIR/bin/cgrun" \
+contains_resolution_line() {
+  local needle="$1"
+  case $'\n'"$resolution"$'\n' in
+    *$'\n'"$needle"$'\n'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+contains_resolution_line 'cgrun_type=file' || fail "cgrun_shell_shadow_present"
+contains_resolution_line 'cgtail_type=file' || fail "cgtail_shell_shadow_present"
+contains_resolution_line "cgrun_path=$PREFIX_DIR/bin/cgrun" \
   || fail "cgrun_path_mismatch expected=$PREFIX_DIR/bin/cgrun"
-printf '%s\n' "$resolution" | grep -Fqx "cgtail_path=$PREFIX_DIR/bin/cgtail" \
+contains_resolution_line "cgtail_path=$PREFIX_DIR/bin/cgtail" \
   || fail "cgtail_path_mismatch expected=$PREFIX_DIR/bin/cgtail"
 
 printf 'shell_rc=%s\n' "$BASHRC"
