@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GUARD="$ROOT/maintenance/ensure-native-cg-shell-guard.sh"
 TMP_BASE="${TMPDIR:-$HOME/.cache/tmp}"
+mkdir -p "$TMP_BASE"
 CASE_DIR="$(mktemp -d "$TMP_BASE/native-cg-shell-guard-verify.XXXXXX")"
 cleanup() { rm -rf "$CASE_DIR" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
