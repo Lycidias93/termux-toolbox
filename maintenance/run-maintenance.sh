@@ -6,6 +6,7 @@ PREFIX_DIR="${PREFIX:?PREFIX is required}"
 TMP_ROOT="${TMPDIR:-$PREFIX_DIR/tmp}"
 AUDIT="$ROOT/maintenance/termux-environment-audit.sh"
 UPDATE="$ROOT/maintenance/update-termux-and-toolbox.sh"
+SHELL_GUARD="$ROOT/maintenance/ensure-native-cg-shell-guard.sh"
 RUNTIME_VERIFY="$ROOT/maintenance/verify-installed-cg-runtime.sh"
 
 section() {
@@ -25,6 +26,7 @@ printf 'tmp_root=%s\n' "$TMP_ROOT"
 printf 'package_downgrade_rollback=not_automatic\n'
 printf 'old_python_directory_delete=no\n'
 printf 'toolbox_git_update=fast_forward_only\n'
+printf 'native_shell_shadow_guard=required\n'
 printf 'installed_runtime_verify=required\n'
 
 section "preflight"
@@ -33,7 +35,7 @@ for command_name in bash git pkg dpkg apt-get python pip sha256sum stat find; do
   printf 'PASS: command_present name=%s\n' "$command_name"
 done
 
-for script in "$AUDIT" "$UPDATE" "$RUNTIME_VERIFY"; do
+for script in "$AUDIT" "$UPDATE" "$SHELL_GUARD" "$RUNTIME_VERIFY"; do
   [[ -s "$script" ]] || fail "script_missing_or_empty path=$script"
   [[ "$(sed -n '1p' "$script")" == '#!/usr/bin/env bash' ]] || fail "shebang_invalid path=$script"
   if LC_ALL=C grep -q $'\r' "$script"; then
@@ -48,6 +50,9 @@ bash "$AUDIT"
 
 section "maintenance_update"
 bash "$UPDATE"
+
+section "native_shell_shadow_guard"
+PREFIX="$PREFIX_DIR" bash "$SHELL_GUARD"
 
 section "installed_runtime_verify"
 PREFIX="$PREFIX_DIR" TERMUX_TOOLBOX_REPO="$ROOT" bash "$RUNTIME_VERIFY"
