@@ -64,7 +64,7 @@ resolve_types() {
 write_legacy_bashrc
 first_output="$(run_guard)"
 printf '%s\n' "$first_output"
-printf '%s\n' "$first_output" | grep -Fq 'RESULT: CG_NATIVE_SHELL_GUARD_DONE outcome=success changed=yes workflow_exit_code=0' \
+[[ "$first_output" == *'RESULT: CG_NATIVE_SHELL_GUARD_DONE outcome=success changed=yes workflow_exit_code=0'* ]] \
   || fail "first_apply_marker_missing"
 [[ "$(grep -Fxc '# TERMUX_TOOLBOX_NATIVE_CG_SHELL_GUARD_V1_START' "$BASHRC")" == "1" ]] \
   || fail "start_marker_not_unique_after_first_apply"
@@ -77,7 +77,7 @@ printf '%s\n' 'PASS: first_apply_and_resolution'
 
 second_output="$(run_guard)"
 printf '%s\n' "$second_output"
-printf '%s\n' "$second_output" | grep -Fq 'RESULT: CG_NATIVE_SHELL_GUARD_DONE outcome=success changed=no workflow_exit_code=0' \
+[[ "$second_output" == *'RESULT: CG_NATIVE_SHELL_GUARD_DONE outcome=success changed=no workflow_exit_code=0'* ]] \
   || fail "idempotent_marker_missing"
 second_backup_count="$(find "$BACKUP_ROOT" -type f -name bashrc.before 2>/dev/null | wc -l | tr -d '[:space:]')"
 [[ "$second_backup_count" == "1" ]] || fail "idempotent_created_backup count=$second_backup_count"
@@ -86,7 +86,7 @@ printf '%s\n' 'PASS: idempotent_apply'
 write_legacy_bashrc
 restore_output="$(run_guard)"
 printf '%s\n' "$restore_output"
-printf '%s\n' "$restore_output" | grep -Fq 'RESULT: CG_NATIVE_SHELL_GUARD_DONE outcome=success changed=yes workflow_exit_code=0' \
+[[ "$restore_output" == *'RESULT: CG_NATIVE_SHELL_GUARD_DONE outcome=success changed=yes workflow_exit_code=0'* ]] \
   || fail "restore_repair_marker_missing"
 [[ "$(resolve_types)" == $'file\nfile' ]] || fail "native_resolution_failed_after_restore"
 restore_backup_count="$(find "$BACKUP_ROOT" -type f -name bashrc.before 2>/dev/null | wc -l | tr -d '[:space:]')"
