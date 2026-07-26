@@ -33,6 +33,7 @@ trap cleanup EXIT INT TERM
 stripped="$work_dir/bashrc.stripped"
 trimmed="$work_dir/bashrc.trimmed"
 candidate="$work_dir/bashrc.candidate"
+probe="$work_dir/resolution-probe.sh"
 
 awk -v start="$START_MARKER" -v end="$END_MARKER" '
   $0 == start { skip=1; next }
@@ -85,18 +86,21 @@ post_guard_content="$(awk -v end="$END_MARKER" '
 [[ -z "$post_guard_content" ]] || fail "guard_not_last path=$BASHRC"
 bash -n "$BASHRC" || fail "shell_rc_syntax path=$BASHRC"
 
-resolution="$(PATH="$PREFIX_DIR/bin:$PATH" bash --noprofile --rcfile "$BASHRC" -ic '
-  printf "cgrun_type=%s\n" "$(type -t cgrun 2>/dev/null || true)"
-  printf "cgtail_type=%s\n" "$(type -t cgtail 2>/dev/null || true)"
-  printf "cgrun_path=%s\n" "$(type -P cgrun 2>/dev/null || true)"
-  printf "cgtail_path=%s\n" "$(type -P cgtail 2>/dev/null || true)"
-' 2>/dev/null)"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'printf "cgrun_type=%s\n" "$(type -t cgrun 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cgtail_type=%s\n" "$(type -t cgtail 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cgrun_path=%s\n" "$(type -P cgrun 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cgtail_path=%s\n" "$(type -P cgtail 2>/dev/null || true)"'
+} > "$probe"
+chmod 0700 "$probe"
+resolution="$(PATH="$PREFIX_DIR/bin:$PATH" bash --noprofile --rcfile "$BASHRC" -i "$probe" 2>/dev/null)"
 printf '%s\n' "$resolution"
-grep -Fqx 'cgrun_type=file' <<< "$resolution" || fail "cgrun_shell_shadow_present"
-grep -Fqx 'cgtail_type=file' <<< "$resolution" || fail "cgtail_shell_shadow_present"
-grep -Fqx "cgrun_path=$PREFIX_DIR/bin/cgrun" <<< "$resolution" \
+printf '%s\n' "$resolution" | grep -Fqx 'cgrun_type=file' || fail "cgrun_shell_shadow_present"
+printf '%s\n' "$resolution" | grep -Fqx 'cgtail_type=file' || fail "cgtail_shell_shadow_present"
+printf '%s\n' "$resolution" | grep -Fqx "cgrun_path=$PREFIX_DIR/bin/cgrun" \
   || fail "cgrun_path_mismatch expected=$PREFIX_DIR/bin/cgrun"
-grep -Fqx "cgtail_path=$PREFIX_DIR/bin/cgtail" <<< "$resolution" \
+printf '%s\n' "$resolution" | grep -Fqx "cgtail_path=$PREFIX_DIR/bin/cgtail" \
   || fail "cgtail_path_mismatch expected=$PREFIX_DIR/bin/cgtail"
 
 printf 'shell_rc=%s\n' "$BASHRC"
