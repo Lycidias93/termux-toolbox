@@ -109,11 +109,18 @@ probe="$probe_dir/resolution-probe.sh"
 chmod 0700 "$probe"
 resolution="$(PATH="$BIN_DIR:$PATH" bash --noprofile --rcfile "$BASHRC" -i "$probe" 2>/dev/null)"
 printf '%s\n' "$resolution"
-printf '%s\n' "$resolution" | grep -Fqx 'cgrun_type=file' || fail 'cgrun_shell_shadow_present'
-printf '%s\n' "$resolution" | grep -Fqx 'cgtail_type=file' || fail 'cgtail_shell_shadow_present'
-printf '%s\n' "$resolution" | grep -Fqx "cgrun_path=$BIN_DIR/cgrun" \
+contains_resolution_line() {
+  local needle="$1"
+  case $'\n'"$resolution"$'\n' in
+    *$'\n'"$needle"$'\n'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+contains_resolution_line 'cgrun_type=file' || fail 'cgrun_shell_shadow_present'
+contains_resolution_line 'cgtail_type=file' || fail 'cgtail_shell_shadow_present'
+contains_resolution_line "cgrun_path=$BIN_DIR/cgrun" \
   || fail "cgrun_path_mismatch expected=$BIN_DIR/cgrun"
-printf '%s\n' "$resolution" | grep -Fqx "cgtail_path=$BIN_DIR/cgtail" \
+contains_resolution_line "cgtail_path=$BIN_DIR/cgtail" \
   || fail "cgtail_path_mismatch expected=$BIN_DIR/cgtail"
 printf 'PASS: native_shell_resolution shell_rc=%s\n' "$BASHRC"
 
