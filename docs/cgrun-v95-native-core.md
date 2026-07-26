@@ -35,6 +35,12 @@ The aggregate verifier also changed every shebang-bearing source file to executa
 all file contents remained byte-identical. That made later guarded updates stop on a dirty
 worktree created by the verifier itself.
 
+A later Pixel restore exposed a separate shell-resolution defect. The installed v9.5 files
+were correct, but an old `cgrun()` and `cgtail()` function block restored into `~/.bashrc`
+shadowed the files in `$PREFIX/bin`. The functions called the historical v9.3 compatibility
+names and added a second AutoTail, so the clipboard handoff was overwritten and the obsolete
+`CGRUN_AUTO_TAIL_DONE rc=... original_cgrun_rc=...` marker returned.
+
 ## Fixed architecture
 
 The repository now owns the full active runtime:
@@ -59,6 +65,14 @@ Repository verification is read-only with respect to tracked source files. Shell
 verifier compares Git status before and after execution. Any verifier-created worktree change
 is a hard failure.
 
+`maintenance/ensure-native-cg-shell-guard.sh` owns an idempotent final block in `~/.bashrc`.
+Every installer and maintenance run removes older copies of that block, appends one canonical
+copy at the end, unsets restored legacy functions, refreshes Bash command hashing, and verifies
+that interactive Bash resolves `cgrun` and `cgtail` as the native files in `$PREFIX/bin`.
+A changed shell file is backed up under `$HOME/.chatgpt-output/native-cg-shell-guard-backups`.
+The guard does not delete the historical function source; it makes it inert after shell startup
+and therefore remains reversible through the recorded backup.
+
 ## Verification
 
 `verify/verify-cg-execution-receipt.sh` checks:
@@ -76,9 +90,13 @@ is a hard failure.
 original basename, canonicalizes uppercase, mixed-case, and omitted modes to `verify`, and
 rejects unsupported run modes before they can create a divergent run ID.
 
+`verify/verify-native-cg-shell-guard.sh` checks first application, backup creation, interactive
+file resolution, idempotent reapplication, and repair after a simulated legacy `.bashrc`
+restore.
+
 `verify/verify-termux-toolbox.sh` checks syntax without changing executable bits and emits
 `PASS verifier_worktree_immutable` only when its complete run leaves Git status unchanged.
 
-`maintenance/verify-installed-cg-runtime.sh` checks syntax, executable state, markers, and
-SHA-256 parity for the wrapper, both native cores, compatibility shims, lane runtime, and
-`cg-run-file`.
+`maintenance/verify-installed-cg-runtime.sh` checks syntax, executable state, markers, SHA-256
+parity, guard uniqueness and final position, and interactive file resolution for the wrapper,
+both native cores, compatibility shims, lane runtime, and `cg-run-file`.
