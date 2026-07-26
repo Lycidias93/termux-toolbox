@@ -96,6 +96,18 @@ else
   fail=1
 fi
 
+if [[ -f verify/verify-native-cg-shell-guard.sh ]]; then
+  if bash verify/verify-native-cg-shell-guard.sh; then
+    echo "PASS native_cg_shell_guard_contract"
+  else
+    echo "FAIL native_cg_shell_guard_contract"
+    fail=1
+  fi
+else
+  echo "FAIL native_cg_shell_guard_verify_missing"
+  fail=1
+fi
+
 if [[ -f verify/verify-cg-execution-receipt.sh ]]; then
   if bash verify/verify-cg-execution-receipt.sh; then
     echo "PASS cg_execution_receipt_contract"

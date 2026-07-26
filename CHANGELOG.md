@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added an idempotent native CG shell-resolution guard that keeps restored legacy `cgrun()` and `cgtail()` functions from shadowing the repository-owned v9.5 binaries.
+- Integrated the guard into installation and maintenance, with automatic `.bashrc` backup, final-block enforcement, interactive resolution verification and restore-regression coverage.
+- Extended the installed-runtime gate to require a unique final shell guard and `cgrun`/`cgtail` resolution to `$PREFIX/bin` files.
 - Added a complete Termux maintenance workflow with a preflight audit, gated package update, fast-forward-only toolbox update, installed-helper parity verification and post-audit.
 - Added explicit backup and rollback boundaries for toolbox files while keeping package downgrades manual.
 - Added old Python runtime directory inventory without automatic deletion.

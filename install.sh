@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
 BIN_DIR="$PREFIX_DIR/bin"
+SHELL_GUARD="$ROOT/maintenance/ensure-native-cg-shell-guard.sh"
 RUNTIME_VERIFY="$ROOT/maintenance/verify-installed-cg-runtime.sh"
 
 fail() {
@@ -25,8 +26,10 @@ do
   bash -n "$source_file" || fail "runtime_source_syntax path=$source_file"
 done
 
-[[ -s "$RUNTIME_VERIFY" ]] || fail "runtime_verifier_missing path=$RUNTIME_VERIFY"
-bash -n "$RUNTIME_VERIFY"
+for support_script in "$SHELL_GUARD" "$RUNTIME_VERIFY"; do
+  [[ -s "$support_script" ]] || fail "support_script_missing path=$support_script"
+  bash -n "$support_script" || fail "support_script_syntax path=$support_script"
+done
 
 mkdir -p "$BIN_DIR"
 for f in "$ROOT"/bin/*; do
@@ -34,5 +37,6 @@ for f in "$ROOT"/bin/*; do
   install -m 0755 "$f" "$BIN_DIR/$(basename "$f")"
 done
 
+PREFIX="$PREFIX_DIR" bash "$SHELL_GUARD"
 PREFIX="$PREFIX_DIR" TERMUX_TOOLBOX_REPO="$ROOT" bash "$RUNTIME_VERIFY"
 printf 'RESULT: TERMUX_TOOLBOX_INSTALL_DONE outcome=success workflow_exit_code=0\n'

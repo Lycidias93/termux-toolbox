@@ -3,7 +3,12 @@ set -euo pipefail
 
 PREFIX_DIR="${PREFIX:?PREFIX is required}"
 TOOLBOX="${TERMUX_TOOLBOX_REPO:-$HOME/src/termux-toolbox}"
+HOME_DIR="${HOME:?HOME is required}"
 BIN_DIR="$PREFIX_DIR/bin"
+BASHRC="${CG_SHELL_RC_FILE:-$HOME_DIR/.bashrc}"
+TMP_ROOT="${TMPDIR:-$PREFIX_DIR/tmp}"
+START_MARKER="# TERMUX_TOOLBOX_NATIVE_CG_SHELL_GUARD_V1_START"
+END_MARKER="# TERMUX_TOOLBOX_NATIVE_CG_SHELL_GUARD_V1_END"
 
 fail() {
   printf 'FAIL: %s\n' "$1"
@@ -73,6 +78,51 @@ if grep -Eq '^RESULT: CGRUN_.*(^|[[:space:]])rc=' \
   "$BIN_DIR/cgrun" "$BIN_DIR/cgrun-core-v95" "$BIN_DIR/cgrun.autoclip-v93-real"; then
   fail 'ambiguous_cgrun_rc_marker_present'
 fi
+
+SHELL_GUARD="$TOOLBOX/maintenance/ensure-native-cg-shell-guard.sh"
+[[ -s "$SHELL_GUARD" ]] || fail "shell_guard_source_missing path=$SHELL_GUARD"
+bash -n "$SHELL_GUARD" || fail "shell_guard_source_syntax path=$SHELL_GUARD"
+[[ -f "$BASHRC" ]] || fail "shell_rc_missing path=$BASHRC"
+bash -n "$BASHRC" || fail "shell_rc_syntax path=$BASHRC"
+[[ "$(grep -Fxc "$START_MARKER" "$BASHRC" 2>/dev/null || true)" == "1" ]] \
+  || fail "shell_guard_start_not_unique path=$BASHRC"
+[[ "$(grep -Fxc "$END_MARKER" "$BASHRC" 2>/dev/null || true)" == "1" ]] \
+  || fail "shell_guard_end_not_unique path=$BASHRC"
+post_guard_content="$(awk -v end="$END_MARKER" '
+  $0 == end { seen=1; next }
+  seen && $0 !~ /^[[:space:]]*$/ { print; exit }
+' "$BASHRC")"
+[[ -z "$post_guard_content" ]] || fail "shell_guard_not_last path=$BASHRC"
+
+mkdir -p "$TMP_ROOT"
+probe_dir="$(mktemp -d "$TMP_ROOT/native-cg-resolution-verify.XXXXXX")"
+cleanup() { rm -rf "$probe_dir" 2>/dev/null || true; }
+trap cleanup EXIT INT TERM
+probe="$probe_dir/resolution-probe.sh"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'printf "cgrun_type=%s\n" "$(type -t cgrun 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cgtail_type=%s\n" "$(type -t cgtail 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cgrun_path=%s\n" "$(type -P cgrun 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cgtail_path=%s\n" "$(type -P cgtail 2>/dev/null || true)"'
+} > "$probe"
+chmod 0700 "$probe"
+resolution="$(PATH="$BIN_DIR:$PATH" bash --noprofile --rcfile "$BASHRC" -i "$probe" 2>/dev/null)"
+printf '%s\n' "$resolution"
+contains_resolution_line() {
+  local needle="$1"
+  case $'\n'"$resolution"$'\n' in
+    *$'\n'"$needle"$'\n'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+contains_resolution_line 'cgrun_type=file' || fail 'cgrun_shell_shadow_present'
+contains_resolution_line 'cgtail_type=file' || fail 'cgtail_shell_shadow_present'
+contains_resolution_line "cgrun_path=$BIN_DIR/cgrun" \
+  || fail "cgrun_path_mismatch expected=$BIN_DIR/cgrun"
+contains_resolution_line "cgtail_path=$BIN_DIR/cgtail" \
+  || fail "cgtail_path_mismatch expected=$BIN_DIR/cgtail"
+printf 'PASS: native_shell_resolution shell_rc=%s\n' "$BASHRC"
 
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'toolbox_head=%s\n' "$(git -C "$TOOLBOX" rev-parse HEAD 2>/dev/null || printf unknown)"
