@@ -21,20 +21,22 @@ mkdir -p "$FAKE_BIN" "$CAPTURE"
   printf '%s\n' 'printf '\''%s\n'\'' "$(basename "$script")" > "$CG_RUN_FILE_CAPTURE/task_basename"'
   printf '%s\n' 'printf '\''%s\n'\'' "${3:-}" > "$CG_RUN_FILE_CAPTURE/mode"'
   printf '%s\n' 'printf '\''%s\n'\'' "${4:-}" > "$CG_RUN_FILE_CAPTURE/scope"'
+  printf '%s\n' 'bash "$script" > "$CG_RUN_FILE_CAPTURE/payload_output"'
 } > "$FAKE_BIN/cg-lane.sh"
 chmod 0755 "$FAKE_BIN/cg-lane.sh"
 
-run_case() {
-  local name="$1" source_shebang="$2" expected_shebang="$3" requested_mode="$4"
-  local script="$TMP_ROOT/$name.sh"
+reset_capture() {
+  rm -f \
+    "$CAPTURE/first_line" \
+    "$CAPTURE/script_path" \
+    "$CAPTURE/task_basename" \
+    "$CAPTURE/mode" \
+    "$CAPTURE/scope" \
+    "$CAPTURE/payload_output"
+}
 
-  printf '%s\nprintf "RESULT: %s_DONE\\n"\n' "$source_shebang" "$name" > "$script"
-  chmod 0755 "$script"
-  rm -f "$CAPTURE/first_line" "$CAPTURE/script_path" "$CAPTURE/task_basename" "$CAPTURE/mode" "$CAPTURE/scope"
-
-  TMPDIR="$TMP_ROOT" PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
-    bash "$WRAPPER" "$script" "$requested_mode" pixel
-
+assert_common() {
+  local name="$1" script="$2" expected_shebang="$3" requested_mode="$4"
   [ "$(cat "$CAPTURE/first_line")" = "$expected_shebang" ] || return 1
   [ "$(cat "$CAPTURE/task_basename")" = "$(basename "$script")" ] || {
     printf 'FAIL task_basename_changed case=%s got=%s expected=%s\n' \
@@ -47,24 +49,71 @@ run_case() {
     return 1
   }
   [ "$(cat "$CAPTURE/scope")" = "pixel" ] || return 1
-  printf 'PASS normalized_shebang_task_and_mode case=%s source=%s target=%s task=%s requested_mode=%s canonical_mode=verify\n' \
-    "$name" "$source_shebang" "$expected_shebang" "$(basename "$script")" "${requested_mode:-default}"
+  grep -Fxq "RESULT: ${name}_DONE" "$CAPTURE/payload_output" || {
+    printf 'FAIL payload_not_executed case=%s\n' "$name"
+    return 1
+  }
 }
 
-run_case native_termux_bash '#!/data/data/com.termux/files/usr/bin/bash' '#!/usr/bin/env bash' 'VERIFY'
-run_case native_termux_sh '#!/data/data/com.termux/files/usr/bin/sh' '#!/usr/bin/env sh' 'VeRiFy'
-run_case portable_env_bash '#!/usr/bin/env bash' '#!/usr/bin/env bash' ''
+run_shell_case() {
+  local name="$1" source_shebang="$2" expected_shebang="$3" requested_mode="$4"
+  local script="$TMP_ROOT/$name.sh"
 
-invalid_script="$TMP_ROOT/invalid_mode.sh"
-printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$invalid_script"
-chmod 0755 "$invalid_script"
+  printf '%s\nprintf "RESULT: %s_DONE\\n"\n' "$source_shebang" "$name" > "$script"
+  chmod 0755 "$script"
+  reset_capture
+
+  TMPDIR="$TMP_ROOT" PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
+    bash "$WRAPPER" "$script" "$requested_mode" pixel
+
+  assert_common "$name" "$script" "$expected_shebang" "$requested_mode"
+  printf 'PASS normalized_shell_shebang_task_mode_and_execution case=%s source=%s target=%s task=%s\n' \
+    "$name" "$source_shebang" "$expected_shebang" "$(basename "$script")"
+}
+
+run_python_case() {
+  local name="$1" source_shebang="$2"
+  local script="$TMP_ROOT/$name.py"
+
+  printf '%s\n' "$source_shebang" "print('RESULT: ${name}_DONE')" > "$script"
+  chmod 0755 "$script"
+  reset_capture
+
+  TMPDIR="$TMP_ROOT" PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
+    bash "$WRAPPER" "$script" VERIFY pixel
+
+  assert_common "$name" "$script" '#!/usr/bin/env bash' VERIFY
+  printf 'PASS normalized_python_artifact_task_mode_and_execution case=%s source=%s wrapper=%s task=%s\n' \
+    "$name" "$source_shebang" '#!/usr/bin/env bash' "$(basename "$script")"
+}
+
+run_shell_case native_termux_bash '#!/data/data/com.termux/files/usr/bin/bash' '#!/usr/bin/env bash' 'VERIFY'
+run_shell_case native_termux_sh '#!/data/data/com.termux/files/usr/bin/sh' '#!/usr/bin/env sh' 'VeRiFy'
+run_shell_case portable_env_bash '#!/usr/bin/env bash' '#!/usr/bin/env bash' ''
+run_python_case native_termux_python3 '#!/data/data/com.termux/files/usr/bin/python3'
+run_python_case portable_env_python3 '#!/usr/bin/env python3'
+
+invalid_mode_script="$TMP_ROOT/invalid_mode.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$invalid_mode_script"
+chmod 0755 "$invalid_mode_script"
 if TMPDIR="$TMP_ROOT" PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
-  bash "$WRAPPER" "$invalid_script" deploy pixel >/dev/null 2>&1
+  bash "$WRAPPER" "$invalid_mode_script" deploy pixel >/dev/null 2>&1
 then
   printf '%s\n' 'FAIL invalid_mode_accepted'
   exit 1
 fi
 
+invalid_python="$TMP_ROOT/invalid_python.py"
+printf '%s\n' '#!/data/data/com.termux/files/usr/bin/python3' 'def broken(' > "$invalid_python"
+chmod 0755 "$invalid_python"
+if TMPDIR="$TMP_ROOT" PATH="$FAKE_BIN:$PATH" CG_RUN_FILE_CAPTURE="$CAPTURE" \
+  bash "$WRAPPER" "$invalid_python" verify pixel >/dev/null 2>&1
+then
+  printf '%s\n' 'FAIL invalid_python_syntax_accepted'
+  exit 1
+fi
+
 printf '%s\n' 'PASS cg_run_file_mode_canonicalization'
 printf '%s\n' 'PASS cg_run_file_invalid_mode_rejected'
+printf '%s\n' 'PASS cg_run_file_python_syntax_guard'
 printf '%s\n' 'RESULT: CG_RUN_FILE_TERMUX_SHEBANG_VERIFY_DONE outcome=success workflow_exit_code=0'
