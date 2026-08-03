@@ -42,6 +42,41 @@ case "$first" in
     lane_runner="$(command -v cg-lane.sh)"
     bash "$lane_runner" run-file "$normalized" "$mode" "$scope"
     ;;
+  '#!/data/data/com.termux/files/usr/bin/python3'|'#!/usr/bin/env python3')
+    tmp_base="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+    mkdir -p "$tmp_base"
+    normalized_dir="$(mktemp -d "$tmp_base/cg-run-file-normalized.XXXXXX")"
+    normalized="$normalized_dir/$(basename "$script")"
+    python_payload="$normalized_dir/payload.py"
+    cleanup() { rm -rf "$normalized_dir" 2>/dev/null || true; }
+    trap cleanup EXIT INT TERM
+
+    {
+      printf '%s\n' '#!/usr/bin/env python3'
+      tail -n +2 "$script"
+    } > "$python_payload"
+    chmod 0644 "$python_payload"
+
+    command -v python3 >/dev/null 2>&1 || {
+      printf '%s\n' 'FAIL: python3_missing_for_python_artifact' >&2
+      exit 1
+    }
+    PYTHONPYCACHEPREFIX="$normalized_dir/pycache" python3 -m py_compile "$python_payload" || {
+      printf 'FAIL: python_artifact_syntax path=%s\n' "$script" >&2
+      exit 1
+    }
+
+    printf -v python_payload_q '%q' "$python_payload"
+    {
+      printf '%s\n' '#!/usr/bin/env bash'
+      printf '%s\n' 'set -euo pipefail'
+      printf 'exec python3 %s\n' "$python_payload_q"
+    } > "$normalized"
+    chmod 0755 "$normalized"
+
+    lane_runner="$(command -v cg-lane.sh)"
+    bash "$lane_runner" run-file "$normalized" "$mode" "$scope"
+    ;;
   *)
     lane_runner="$(command -v cg-lane.sh)"
     exec bash "$lane_runner" run-file "$script" "$mode" "$scope"
