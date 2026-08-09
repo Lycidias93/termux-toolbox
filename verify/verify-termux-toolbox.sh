@@ -108,6 +108,18 @@ else
   fail=1
 fi
 
+if [[ -f verify/verify-cg-run-file-lock-autocopy-integration.sh ]]; then
+  if bash verify/verify-cg-run-file-lock-autocopy-integration.sh; then
+    echo "PASS cg_run_file_lock_autocopy_integration_contract"
+  else
+    echo "FAIL cg_run_file_lock_autocopy_integration_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_run_file_lock_autocopy_integration_verify_missing"
+  fail=1
+fi
+
 if [[ -f verify/verify-native-cg-shell-guard.sh ]]; then
   if bash verify/verify-native-cg-shell-guard.sh; then
     echo "PASS native_cg_shell_guard_contract"
