@@ -2,21 +2,19 @@
 set -euo pipefail
 
 script="${1:-}"
-[ -n "$script" ] || {
-  lane_runner="$(command -v cg-lane.sh)"
-  exec bash "$lane_runner" run-file "$@"
-}
-
 mode="${2:-verify}"
 mode="$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')"
-case "$mode" in
-  verify|run) ;;
-  *)
-    printf 'FAIL: run_mode_invalid value=%s allowed=verify|run\n' "$mode" >&2
-    exit 1
-    ;;
-esac
 scope="${3:-}"
+
+driver="$(command -v cg-run-file-driver-v1 2>/dev/null || true)"
+if [ -z "$driver" ] || [ ! -s "$driver" ]; then
+  printf '%s\n' 'FAIL: cg_run_file_driver_missing name=cg-run-file-driver-v1' >&2
+  exit 127
+fi
+
+delegate() {
+  bash "$driver" run "$1" "$mode" "$scope"
+}
 
 first="$(head -n 1 "$script" 2>/dev/null || true)"
 case "$first" in
@@ -26,7 +24,7 @@ case "$first" in
     normalized_dir="$(mktemp -d "$tmp_base/cg-run-file-normalized.XXXXXX")"
     normalized="$normalized_dir/$(basename "$script")"
     cleanup() { rm -rf "$normalized_dir" 2>/dev/null || true; }
-    trap cleanup EXIT INT TERM
+    trap cleanup EXIT INT TERM HUP
 
     case "$first" in
       '#!/data/data/com.termux/files/usr/bin/bash') normalized_shebang='#!/usr/bin/env bash' ;;
@@ -39,8 +37,7 @@ case "$first" in
     } > "$normalized"
     chmod 0755 "$normalized"
 
-    lane_runner="$(command -v cg-lane.sh)"
-    bash "$lane_runner" run-file "$normalized" "$mode" "$scope"
+    delegate "$normalized"
     ;;
   '#!/data/data/com.termux/files/usr/bin/python3'|'#!/usr/bin/env python3')
     tmp_base="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
@@ -49,7 +46,7 @@ case "$first" in
     normalized="$normalized_dir/$(basename "$script")"
     python_payload="$normalized_dir/payload.py"
     cleanup() { rm -rf "$normalized_dir" 2>/dev/null || true; }
-    trap cleanup EXIT INT TERM
+    trap cleanup EXIT INT TERM HUP
 
     {
       printf '%s\n' '#!/usr/bin/env python3'
@@ -74,11 +71,9 @@ case "$first" in
     } > "$normalized"
     chmod 0755 "$normalized"
 
-    lane_runner="$(command -v cg-lane.sh)"
-    bash "$lane_runner" run-file "$normalized" "$mode" "$scope"
+    delegate "$normalized"
     ;;
   *)
-    lane_runner="$(command -v cg-lane.sh)"
-    exec bash "$lane_runner" run-file "$script" "$mode" "$scope"
+    exec bash "$driver" run "$script" "$mode" "$scope"
     ;;
 esac

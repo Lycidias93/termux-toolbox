@@ -34,6 +34,7 @@ for name in \
   cgrun.autoclip-v93-real \
   cgtail-autoclip-v93 \
   cg-lane.sh \
+  cg-run-file-driver-v1 \
   cg-run-file
 do
   check_file "$BIN_DIR/$name"
@@ -53,6 +54,10 @@ grep -Fq 'CGRUN_WORKFLOW_OK' "$BIN_DIR/cgrun" \
   || fail 'workflow_ok_marker_missing'
 grep -Fq 'workflow_exit_code=' "$BIN_DIR/cgrun" \
   || fail 'workflow_exit_code_field_missing'
+grep -Fq 'CG_MULTILANE_STALE_LOCK_RECOVERED' "$BIN_DIR/cg-run-file-driver-v1" \
+  || fail 'stale_lock_recovery_marker_missing'
+grep -Fq 'CG_MULTILANE_LOCK_BUSY' "$BIN_DIR/cg-run-file-driver-v1" \
+  || fail 'lock_busy_autocopy_marker_missing'
 printf 'PASS: execution_receipt_contract\n'
 
 for name in \
@@ -62,6 +67,7 @@ for name in \
   cgrun.autoclip-v93-real \
   cgtail-autoclip-v93 \
   cg-lane.sh \
+  cg-run-file-driver-v1 \
   cg-run-file
 do
   source_file="$TOOLBOX/bin/$name"
@@ -125,5 +131,6 @@ contains_resolution_line "cgtail_path=$BIN_DIR/cgtail" \
 printf 'PASS: native_shell_resolution shell_rc=%s\n' "$BASHRC"
 
 printf 'runtime_version=v9.5-native-core-receipt\n'
+printf 'run_file_driver_version=v1\n'
 printf 'toolbox_head=%s\n' "$(git -C "$TOOLBOX" rev-parse HEAD 2>/dev/null || printf unknown)"
 printf 'RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0\n'

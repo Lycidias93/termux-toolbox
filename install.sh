@@ -20,6 +20,7 @@ for source_file in \
   "$ROOT/bin/cgrun.autoclip-v93-real" \
   "$ROOT/bin/cgtail-autoclip-v93" \
   "$ROOT/bin/cg-lane.sh" \
+  "$ROOT/bin/cg-run-file-driver-v1" \
   "$ROOT/bin/cg-run-file"
 do
   [[ -s "$source_file" ]] || fail "runtime_source_missing path=$source_file"

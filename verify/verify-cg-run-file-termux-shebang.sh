@@ -13,17 +13,20 @@ mkdir -p "$FAKE_BIN" "$CAPTURE"
 {
   printf '%s\n' '#!/usr/bin/env bash'
   printf '%s\n' 'set -euo pipefail'
-  printf '%s\n' '[ "${1:-}" = "run-file" ] || exit 91'
+  printf '%s\n' '[ "${1:-}" = "run" ] || exit 91'
   printf '%s\n' 'script="${2:-}"'
+  printf '%s\n' 'mode="${3:-}"'
+  printf '%s\n' 'scope="${4:-}"'
+  printf '%s\n' 'case "$mode" in verify|run) ;; *) exit 90 ;; esac'
   printf '%s\n' '[ -f "$script" ] || exit 92'
   printf '%s\n' 'printf '\''%s\n'\'' "$(head -n 1 "$script")" > "$CG_RUN_FILE_CAPTURE/first_line"'
   printf '%s\n' 'printf '\''%s\n'\'' "$script" > "$CG_RUN_FILE_CAPTURE/script_path"'
   printf '%s\n' 'printf '\''%s\n'\'' "$(basename "$script")" > "$CG_RUN_FILE_CAPTURE/task_basename"'
-  printf '%s\n' 'printf '\''%s\n'\'' "${3:-}" > "$CG_RUN_FILE_CAPTURE/mode"'
-  printf '%s\n' 'printf '\''%s\n'\'' "${4:-}" > "$CG_RUN_FILE_CAPTURE/scope"'
+  printf '%s\n' 'printf '\''%s\n'\'' "$mode" > "$CG_RUN_FILE_CAPTURE/mode"'
+  printf '%s\n' 'printf '\''%s\n'\'' "$scope" > "$CG_RUN_FILE_CAPTURE/scope"'
   printf '%s\n' 'bash "$script" > "$CG_RUN_FILE_CAPTURE/payload_output"'
-} > "$FAKE_BIN/cg-lane.sh"
-chmod 0755 "$FAKE_BIN/cg-lane.sh"
+} > "$FAKE_BIN/cg-run-file-driver-v1"
+chmod 0755 "$FAKE_BIN/cg-run-file-driver-v1"
 
 reset_capture() {
   rm -f \
