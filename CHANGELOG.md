@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed `cg-run-file` stale lane locks left by interrupted runs: dead lock owners are recovered automatically while live owners remain fail-closed.
+- Moved lane-lock acquisition into the `cgrun` execution path so `lock_busy` failures now receive the same mandatory AutoCopy/receipt handling as payload failures.
+- Added PID start-tick lock ownership to avoid false liveness after PID reuse and cleanup traps for INT/TERM/HUP/EXIT.
+- Added `verify-cg-run-file-lock-autocopy.sh` covering stale-lock recovery, live-lock preservation and `lock_busy` occurring inside the cgrun path.
 - Added an idempotent native CG shell-resolution guard that keeps restored legacy `cgrun()` and `cgtail()` functions from shadowing the repository-owned v9.5 binaries.
 - Integrated the guard into installation and maintenance, with automatic `.bashrc` backup, final-block enforcement, interactive resolution verification and restore-regression coverage.
 - Extended the installed-runtime gate to require a unique final shell guard and `cgrun`/`cgtail` resolution to `$PREFIX/bin` files.
