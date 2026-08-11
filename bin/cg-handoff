@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="cg-handoff-v1"
+DOWNLOAD_ROOT="${CG_HANDOFF_DOWNLOAD_ROOT:-/storage/emulated/0/Download}"
+TMP_ROOT="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+
+fail() {
+  local reason="$1"
+  printf 'FAIL: cg_handoff reason=%s\n' "$reason" >&2
+  printf 'RESULT: CG_HANDOFF_STOP outcome=stop reason=%s workflow_exit_code=2\n' "$reason" >&2
+  exit 2
+}
+
+usage() {
+  printf 'Usage: cg-handoff <pixel_local__artifact.sh|absolute-download-path> <sha256>\n' >&2
+}
+
+field() {
+  local key="$1" file="$2" count value
+  count="$(grep -Fc "# cg_handoff_${key}=" "$file" 2>/dev/null || true)"
+  [[ "$count" == "1" ]] || fail "metadata_${key}_not_unique"
+  value="$(sed -n "s/^# cg_handoff_${key}=//p" "$file")"
+  [[ -n "$value" ]] || fail "metadata_${key}_empty"
+  printf '%s\n' "$value"
+}
+
+safe_token() {
+  local value="$1"
+  [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+source_arg="${1:-}"
+expected_sha="${2:-}"
+[[ -n "$source_arg" && -n "$expected_sha" && "$#" -eq 2 ]] || { usage; fail invalid_arguments; }
+[[ "$expected_sha" =~ ^[0-9a-f]{64}$ ]] || fail expected_sha_invalid
+
+case "$source_arg" in
+  /*) source_path="$source_arg" ;;
+  *) source_path="$DOWNLOAD_ROOT/$source_arg" ;;
+esac
+
+[[ -f "$source_path" ]] || fail source_missing
+[[ -s "$source_path" ]] || fail source_empty
+source_real="$(readlink -f "$source_path" 2>/dev/null || true)"
+download_real="$(readlink -f "$DOWNLOAD_ROOT" 2>/dev/null || true)"
+[[ -n "$source_real" && -n "$download_real" ]] || fail source_realpath_failed
+case "$source_real" in
+  "$download_real"/*) ;;
+  *) fail source_outside_download_root ;;
+esac
+
+basename="$(basename "$source_real")"
+case "$basename" in
+  pixel_local__*.sh) ;;
+  target-*|targets-*) fail remote_target_not_supported ;;
+  *) fail unsupported_artifact_basename ;;
+esac
+
+actual_sha="$(sha256sum "$source_real" | awk '{print $1}')"
+[[ "$actual_sha" == "$expected_sha" ]] || fail source_sha_mismatch
+
+start_count="$(grep -Fxc '# CG_HANDOFF_V1_START' "$source_real" 2>/dev/null || true)"
+end_count="$(grep -Fxc '# CG_HANDOFF_V1_END' "$source_real" 2>/dev/null || true)"
+[[ "$start_count" == "1" && "$end_count" == "1" ]] || fail metadata_block_not_unique
+
+lane="$(field lane "$source_real")"
+scope="$(field scope "$source_real")"
+host="$(field host "$source_real")"
+route_class="$(field route_class "$source_real")"
+secret_class="$(field secret_class "$source_real")"
+run_mode="$(field run_mode "$source_real")"
+expected_marker="$(field expected_marker "$source_real")"
+
+safe_token "$lane" || fail lane_invalid
+safe_token "$host" || fail host_invalid
+case "$scope" in
+  repo|pixel|pixel-dispatcher|pi3|pi4|berylax|pi-host-drop|dns-ha-route|pi4-takeout|zeropi2|zeropi2-edge|omen) ;;
+  *) fail scope_invalid ;;
+esac
+case "$route_class" in
+  none|read-only|route|dns-ha|magicdns|subnet-route) ;;
+  *) fail route_class_invalid ;;
+esac
+case "$secret_class" in
+  none|public|redacted|possible|sensitive) ;;
+  *) fail secret_class_invalid ;;
+esac
+case "$run_mode" in
+  verify|run) ;;
+  *) fail run_mode_invalid ;;
+esac
+[[ "${#expected_marker}" -le 500 ]] || fail expected_marker_too_long
+[[ "$expected_marker" != *$'\r'* && "$expected_marker" != *$'\n'* ]] || fail expected_marker_control_char
+
+for command in cgprep cclear cgcurrent cguse cg-run-file bash install mv rm sha256sum readlink basename grep sed awk mkdir; do
+  command -v "$command" >/dev/null 2>&1 || fail "command_missing_${command}"
+done
+
+cgprep || fail cgprep_failed
+cclear || fail cclear_failed
+cgcurrent || fail cgcurrent_failed
+cguse "$lane" "$scope" "$host" "$route_class" "$secret_class" || fail cguse_failed
+
+mkdir -p "$TMP_ROOT"
+dst="$TMP_ROOT/$basename"
+tmp="$dst.stage.$$"
+rm -f -- "$tmp"
+install -m 0700 "$source_real" "$tmp" || fail stage_install_failed
+staged_sha="$(sha256sum "$tmp" | awk '{print $1}')"
+[[ "$staged_sha" == "$expected_sha" ]] || fail stage_sha_mismatch
+bash -n "$tmp" || fail stage_syntax_failed
+mv -f -- "$tmp" "$dst" || fail stage_publish_failed
+published_sha="$(sha256sum "$dst" | awk '{print $1}')"
+[[ "$published_sha" == "$expected_sha" ]] || fail published_sha_mismatch
+
+export CGFLOW_EXPECTED_MARKER="$expected_marker"
+printf 'CG_HANDOFF_V1 source=%s staged=%s sha256=%s lane=%s mode=%s scope=%s host=%s route_class=%s secret_class=%s\n' \
+  "$source_real" "$dst" "$expected_sha" "$lane" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
+exec cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
