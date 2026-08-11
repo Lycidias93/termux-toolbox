@@ -21,7 +21,8 @@ for source_file in \
   "$ROOT/bin/cgtail-autoclip-v93" \
   "$ROOT/bin/cg-lane.sh" \
   "$ROOT/bin/cg-run-file-driver-v1" \
-  "$ROOT/bin/cg-run-file"
+  "$ROOT/bin/cg-run-file" \
+  "$ROOT/bin/cg-handoff"
 do
   [[ -s "$source_file" ]] || fail "runtime_source_missing path=$source_file"
   bash -n "$source_file" || fail "runtime_source_syntax path=$source_file"

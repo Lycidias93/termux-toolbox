@@ -35,7 +35,8 @@ for name in \
   cgtail-autoclip-v93 \
   cg-lane.sh \
   cg-run-file-driver-v1 \
-  cg-run-file
+  cg-run-file \
+  cg-handoff
 do
   check_file "$BIN_DIR/$name"
   bash -n "$BIN_DIR/$name"
@@ -58,6 +59,10 @@ grep -Fq 'CG_MULTILANE_STALE_LOCK_RECOVERED' "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'stale_lock_recovery_marker_missing'
 grep -Fq 'CG_MULTILANE_LOCK_BUSY' "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'lock_busy_autocopy_marker_missing'
+grep -Fq 'CG_HANDOFF_V1_START' "$BIN_DIR/cg-handoff" \
+  || fail 'cg_handoff_metadata_contract_missing'
+grep -Fq 'exec cg-run-file' "$BIN_DIR/cg-handoff" \
+  || fail 'cg_handoff_run_file_entrypoint_missing'
 printf 'PASS: execution_receipt_contract\n'
 
 for name in \
@@ -68,7 +73,8 @@ for name in \
   cgtail-autoclip-v93 \
   cg-lane.sh \
   cg-run-file-driver-v1 \
-  cg-run-file
+  cg-run-file \
+  cg-handoff
 do
   source_file="$TOOLBOX/bin/$name"
   installed_file="$BIN_DIR/$name"
@@ -109,8 +115,10 @@ probe="$probe_dir/resolution-probe.sh"
   printf '%s\n' '#!/usr/bin/env bash'
   printf '%s\n' 'printf "cgrun_type=%s\n" "$(type -t cgrun 2>/dev/null || true)"'
   printf '%s\n' 'printf "cgtail_type=%s\n" "$(type -t cgtail 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cg_handoff_type=%s\n" "$(type -t cg-handoff 2>/dev/null || true)"'
   printf '%s\n' 'printf "cgrun_path=%s\n" "$(type -P cgrun 2>/dev/null || true)"'
   printf '%s\n' 'printf "cgtail_path=%s\n" "$(type -P cgtail 2>/dev/null || true)"'
+  printf '%s\n' 'printf "cg_handoff_path=%s\n" "$(type -P cg-handoff 2>/dev/null || true)"'
 } > "$probe"
 chmod 0700 "$probe"
 resolution="$(PATH="$BIN_DIR:$PATH" bash --noprofile --rcfile "$BASHRC" -i "$probe" 2>/dev/null)"
@@ -124,13 +132,17 @@ contains_resolution_line() {
 }
 contains_resolution_line 'cgrun_type=file' || fail 'cgrun_shell_shadow_present'
 contains_resolution_line 'cgtail_type=file' || fail 'cgtail_shell_shadow_present'
+contains_resolution_line 'cg_handoff_type=file' || fail 'cg_handoff_shell_shadow_present'
 contains_resolution_line "cgrun_path=$BIN_DIR/cgrun" \
   || fail "cgrun_path_mismatch expected=$BIN_DIR/cgrun"
 contains_resolution_line "cgtail_path=$BIN_DIR/cgtail" \
   || fail "cgtail_path_mismatch expected=$BIN_DIR/cgtail"
+contains_resolution_line "cg_handoff_path=$BIN_DIR/cg-handoff" \
+  || fail "cg_handoff_path_mismatch expected=$BIN_DIR/cg-handoff"
 printf 'PASS: native_shell_resolution shell_rc=%s\n' "$BASHRC"
 
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'run_file_driver_version=v1\n'
+printf 'handoff_version=v1\n'
 printf 'toolbox_head=%s\n' "$(git -C "$TOOLBOX" rev-parse HEAD 2>/dev/null || printf unknown)"
 printf 'RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0\n'
