@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Made `cgrun`/`cg-run-file` permanently noninteractive at the execution boundary: the native core now launches every workflow payload with stdin bound to `/dev/null`, so accidental `read`/prompt calls receive EOF instead of waiting for user input.
+- Added source and installed-runtime regressions that execute an input-reading fixture and require `stdin_mode=dev-null` plus an immediate EOF result.
 - Added `cg-handoff` v1, a metadata-driven two-argument frontend for ChatGPT `pixel_local__*.sh` downloads. It verifies the external SHA-256 before metadata use, binds lane/scope/host/route/secret/mode, stages atomically to `$TMPDIR`, verifies syntax and delegates exactly once to `cg-run-file`, replacing fragile long interactive paste launchers.
 - Added `maintenance/verify-cg-handoff-v1.sh` covering successful staging/binding/expected-marker propagation and fail-closed hash mismatch behavior; the installed-runtime gate now requires `cg-handoff` source parity and shell resolution.
 - Fixed `cg-run-file` stale lane locks left by interrupted runs: dead lock owners are recovered automatically while live owners remain fail-closed.

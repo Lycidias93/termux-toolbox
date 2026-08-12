@@ -43,26 +43,17 @@ do
 done
 printf 'PASS: runtime_syntax\n'
 
-grep -Fq 'AUTOCLIP_V95_CGRUN_EXECUTION_RECEIPT' "$BIN_DIR/cgrun" \
-  || fail 'execution_receipt_wrapper_marker_missing'
-grep -Fq 'AUTOCLIP_V95_NATIVE_CORE_BINDING' "$BIN_DIR/cgrun" \
-  || fail 'native_core_binding_marker_missing'
-grep -Fq 'AUTOCLIP_V95_CGRUN_CORE' "$BIN_DIR/cgrun-core-v95" \
-  || fail 'native_cgrun_core_marker_missing'
-grep -Fq 'AUTOCLIP_V95_CGTAIL_CORE' "$BIN_DIR/cgtail-core-v95" \
-  || fail 'native_cgtail_core_marker_missing'
-grep -Fq 'CGRUN_WORKFLOW_OK' "$BIN_DIR/cgrun" \
-  || fail 'workflow_ok_marker_missing'
-grep -Fq 'workflow_exit_code=' "$BIN_DIR/cgrun" \
-  || fail 'workflow_exit_code_field_missing'
-grep -Fq 'CG_MULTILANE_STALE_LOCK_RECOVERED' "$BIN_DIR/cg-run-file-driver-v1" \
-  || fail 'stale_lock_recovery_marker_missing'
-grep -Fq 'CG_MULTILANE_LOCK_BUSY' "$BIN_DIR/cg-run-file-driver-v1" \
-  || fail 'lock_busy_autocopy_marker_missing'
-grep -Fq 'CG_HANDOFF_V1_START' "$BIN_DIR/cg-handoff" \
-  || fail 'cg_handoff_metadata_contract_missing'
-grep -Fq 'exec cg-run-file' "$BIN_DIR/cg-handoff" \
-  || fail 'cg_handoff_run_file_entrypoint_missing'
+grep -Fq 'AUTOCLIP_V95_CGRUN_EXECUTION_RECEIPT' "$BIN_DIR/cgrun" || fail 'execution_receipt_wrapper_marker_missing'
+grep -Fq 'AUTOCLIP_V95_NATIVE_CORE_BINDING' "$BIN_DIR/cgrun" || fail 'native_core_binding_marker_missing'
+grep -Fq 'AUTOCLIP_V95_CGRUN_CORE' "$BIN_DIR/cgrun-core-v95" || fail 'native_cgrun_core_marker_missing'
+grep -Fq 'AUTOCLIP_V95_STDIN_CLOSED' "$BIN_DIR/cgrun-core-v95" || fail 'native_cgrun_stdin_closed_marker_missing'
+grep -Fq 'AUTOCLIP_V95_CGTAIL_CORE' "$BIN_DIR/cgtail-core-v95" || fail 'native_cgtail_core_marker_missing'
+grep -Fq 'CGRUN_WORKFLOW_OK' "$BIN_DIR/cgrun" || fail 'workflow_ok_marker_missing'
+grep -Fq 'workflow_exit_code=' "$BIN_DIR/cgrun" || fail 'workflow_exit_code_field_missing'
+grep -Fq 'CG_MULTILANE_STALE_LOCK_RECOVERED' "$BIN_DIR/cg-run-file-driver-v1" || fail 'stale_lock_recovery_marker_missing'
+grep -Fq 'CG_MULTILANE_LOCK_BUSY' "$BIN_DIR/cg-run-file-driver-v1" || fail 'lock_busy_autocopy_marker_missing'
+grep -Fq 'CG_HANDOFF_V1_START' "$BIN_DIR/cg-handoff" || fail 'cg_handoff_metadata_contract_missing'
+grep -Fq 'exec cg-run-file' "$BIN_DIR/cg-handoff" || fail 'cg_handoff_run_file_entrypoint_missing'
 printf 'PASS: execution_receipt_contract\n'
 
 for name in \
@@ -81,13 +72,11 @@ do
   [[ -f "$source_file" ]] || fail "source_file_missing path=$source_file"
   source_sha="$(sha256sum "$source_file" | awk '{print $1}')"
   installed_sha="$(sha256sum "$installed_file" | awk '{print $1}')"
-  [[ "$source_sha" == "$installed_sha" ]] \
-    || fail "installed_source_mismatch name=$name source_sha=$source_sha installed_sha=$installed_sha"
+  [[ "$source_sha" == "$installed_sha" ]] || fail "installed_source_mismatch name=$name source_sha=$source_sha installed_sha=$installed_sha"
   printf 'PASS: installed_source_match name=%s sha256=%s\n' "$name" "$source_sha"
 done
 
-if grep -Eq '^RESULT: CGRUN_.*(^|[[:space:]])rc=' \
-  "$BIN_DIR/cgrun" "$BIN_DIR/cgrun-core-v95" "$BIN_DIR/cgrun.autoclip-v93-real"; then
+if grep -Eq '^RESULT: CGRUN_.*(^|[[:space:]])rc=' "$BIN_DIR/cgrun" "$BIN_DIR/cgrun-core-v95" "$BIN_DIR/cgrun.autoclip-v93-real"; then
   fail 'ambiguous_cgrun_rc_marker_present'
 fi
 
@@ -96,10 +85,8 @@ SHELL_GUARD="$TOOLBOX/maintenance/ensure-native-cg-shell-guard.sh"
 bash -n "$SHELL_GUARD" || fail "shell_guard_source_syntax path=$SHELL_GUARD"
 [[ -f "$BASHRC" ]] || fail "shell_rc_missing path=$BASHRC"
 bash -n "$BASHRC" || fail "shell_rc_syntax path=$BASHRC"
-[[ "$(grep -Fxc "$START_MARKER" "$BASHRC" 2>/dev/null || true)" == "1" ]] \
-  || fail "shell_guard_start_not_unique path=$BASHRC"
-[[ "$(grep -Fxc "$END_MARKER" "$BASHRC" 2>/dev/null || true)" == "1" ]] \
-  || fail "shell_guard_end_not_unique path=$BASHRC"
+[[ "$(grep -Fxc "$START_MARKER" "$BASHRC" 2>/dev/null || true)" == "1" ]] || fail "shell_guard_start_not_unique path=$BASHRC"
+[[ "$(grep -Fxc "$END_MARKER" "$BASHRC" 2>/dev/null || true)" == "1" ]] || fail "shell_guard_end_not_unique path=$BASHRC"
 post_guard_content="$(awk -v end="$END_MARKER" '
   $0 == end { seen=1; next }
   seen && $0 !~ /^[[:space:]]*$/ { print; exit }
@@ -133,13 +120,25 @@ contains_resolution_line() {
 contains_resolution_line 'cgrun_type=file' || fail 'cgrun_shell_shadow_present'
 contains_resolution_line 'cgtail_type=file' || fail 'cgtail_shell_shadow_present'
 contains_resolution_line 'cg_handoff_type=file' || fail 'cg_handoff_shell_shadow_present'
-contains_resolution_line "cgrun_path=$BIN_DIR/cgrun" \
-  || fail "cgrun_path_mismatch expected=$BIN_DIR/cgrun"
-contains_resolution_line "cgtail_path=$BIN_DIR/cgtail" \
-  || fail "cgtail_path_mismatch expected=$BIN_DIR/cgtail"
-contains_resolution_line "cg_handoff_path=$BIN_DIR/cg-handoff" \
-  || fail "cg_handoff_path_mismatch expected=$BIN_DIR/cg-handoff"
+contains_resolution_line "cgrun_path=$BIN_DIR/cgrun" || fail "cgrun_path_mismatch expected=$BIN_DIR/cgrun"
+contains_resolution_line "cgtail_path=$BIN_DIR/cgtail" || fail "cgtail_path_mismatch expected=$BIN_DIR/cgtail"
+contains_resolution_line "cg_handoff_path=$BIN_DIR/cg-handoff" || fail "cg_handoff_path_mismatch expected=$BIN_DIR/cg-handoff"
 printf 'PASS: native_shell_resolution shell_rc=%s\n' "$BASHRC"
+
+stdin_out="$probe_dir/stdin-output"
+mkdir -p "$stdin_out"
+stdin_probe='if IFS= read -r unexpected_value; then printf "UNEXPECTED_STDIN_DATA=%s\n" "$unexpected_value"; exit 91; else printf "RESULT: CGRUN_STDIN_EOF_PASS\n"; fi'
+if command -v timeout >/dev/null 2>&1; then
+  CG_OUTPUT_DIR="$stdin_out" CGRUN_HEARTBEAT_SECONDS=0 timeout 5 "$BIN_DIR/cgrun-core-v95" "$stdin_probe" >"$probe_dir/stdin.stdout" 2>"$probe_dir/stdin.stderr" || fail 'cgrun_stdin_probe_nonzero_or_timeout'
+else
+  CG_OUTPUT_DIR="$stdin_out" CGRUN_HEARTBEAT_SECONDS=0 "$BIN_DIR/cgrun-core-v95" "$stdin_probe" >"$probe_dir/stdin.stdout" 2>"$probe_dir/stdin.stderr" || fail 'cgrun_stdin_probe_nonzero'
+fi
+stdin_log="$stdin_out/latest.log"
+[[ -s "$stdin_log" ]] || fail 'cgrun_stdin_probe_log_missing'
+grep -Fq 'stdin_mode=dev-null' "$stdin_log" || fail 'cgrun_stdin_mode_not_dev_null'
+grep -Fq 'RESULT: CGRUN_STDIN_EOF_PASS' "$stdin_log" || fail 'cgrun_stdin_eof_marker_missing'
+if grep -Fq 'UNEXPECTED_STDIN_DATA=' "$stdin_log"; then fail 'cgrun_stdin_inherited_unexpectedly'; fi
+printf 'PASS: cgrun_noninteractive_stdin_eof\n'
 
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'run_file_driver_version=v1\n'
