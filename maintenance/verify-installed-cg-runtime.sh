@@ -155,6 +155,12 @@ CGRUN_CORE_PATH="$BIN_DIR/cgrun-core-v95" bash "$TOOLBOX/verify/verify-cgrun-non
   || fail 'cgrun_noninteractive_stdin_runtime_failed'
 printf 'PASS: cgrun_noninteractive_stdin_runtime\n'
 
+[[ -s "$TOOLBOX/maintenance/verify-cg-handoff-v1.sh" ]] \
+  || fail 'cg_handoff_delayed_tty_verifier_missing'
+CG_HANDOFF_PATH="$BIN_DIR/cg-handoff" bash "$TOOLBOX/maintenance/verify-cg-handoff-v1.sh" \
+  || fail 'cg_handoff_delayed_tty_runtime_failed'
+printf 'PASS: cg_handoff_delayed_tty_runtime\n'
+
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'run_file_driver_version=v1\n'
 printf 'handoff_version=v1.1\n'
