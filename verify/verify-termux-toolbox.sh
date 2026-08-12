@@ -144,6 +144,18 @@ else
   fail=1
 fi
 
+if [[ -f verify/verify-cgrun-noninteractive-stdin.sh ]]; then
+  if bash verify/verify-cgrun-noninteractive-stdin.sh; then
+    echo "PASS cgrun_noninteractive_stdin_contract"
+  else
+    echo "FAIL cgrun_noninteractive_stdin_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cgrun_noninteractive_stdin_verify_missing"
+  fail=1
+fi
+
 if [ "$inside_git" = "yes" ]; then
   git status --porcelain=v2 --untracked-files=all > "$STATUS_AFTER"
   if cmp -s "$STATUS_BEFORE" "$STATUS_AFTER"; then

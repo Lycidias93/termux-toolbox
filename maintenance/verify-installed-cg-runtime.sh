@@ -49,6 +49,8 @@ grep -Fq 'AUTOCLIP_V95_NATIVE_CORE_BINDING' "$BIN_DIR/cgrun" \
   || fail 'native_core_binding_marker_missing'
 grep -Fq 'AUTOCLIP_V95_CGRUN_CORE' "$BIN_DIR/cgrun-core-v95" \
   || fail 'native_cgrun_core_marker_missing'
+grep -Fq 'AUTOCLIP_V95_STDIN_CLOSED' "$BIN_DIR/cgrun-core-v95" \
+  || fail 'native_cgrun_stdin_closed_marker_missing'
 grep -Fq 'AUTOCLIP_V95_CGTAIL_CORE' "$BIN_DIR/cgtail-core-v95" \
   || fail 'native_cgtail_core_marker_missing'
 grep -Fq 'CGRUN_WORKFLOW_OK' "$BIN_DIR/cgrun" \
@@ -145,9 +147,16 @@ contains_resolution_line "cg_handoff_path=$BIN_DIR/cg-handoff" \
   || fail "cg_handoff_path_mismatch expected=$BIN_DIR/cg-handoff"
 printf 'PASS: native_shell_resolution shell_rc=%s\n' "$BASHRC"
 
+[[ -s "$TOOLBOX/verify/verify-cgrun-noninteractive-stdin.sh" ]] \
+  || fail 'cgrun_noninteractive_stdin_verifier_missing'
+CGRUN_CORE_PATH="$BIN_DIR/cgrun-core-v95" bash "$TOOLBOX/verify/verify-cgrun-noninteractive-stdin.sh" \
+  || fail 'cgrun_noninteractive_stdin_runtime_failed'
+printf 'PASS: cgrun_noninteractive_stdin_runtime\n'
+
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'run_file_driver_version=v1\n'
 printf 'handoff_version=v1\n'
 printf 'handoff_tty_tail_drain=v1\n'
+printf 'stdin_mode=dev-null\n'
 printf 'toolbox_head=%s\n' "$(git -C "$TOOLBOX" rev-parse HEAD 2>/dev/null || printf unknown)"
 printf 'RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0\n'
