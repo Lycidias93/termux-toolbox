@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # AUTOCLIP_V95_CGRUN_CORE
+# AUTOCLIP_V95_STDIN_CLOSED
 set -uo pipefail
 
 HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
@@ -9,6 +10,7 @@ HEARTBEAT_SECONDS="${CGRUN_HEARTBEAT_SECONDS:-10}"
 HEARTBEAT_TAIL_LINES="${CGRUN_HEARTBEAT_TAIL_LINES:-12}"
 TASK_LABEL="${CG_RUN_TASK:-${CGRUN_TASK_LABEL:-direct-cgrun}}"
 RUN_ID="${CG_RUN_ID:-none}"
+STDIN_MODE="dev-null"
 
 is_uint() {
   case "${1:-}" in
@@ -42,19 +44,23 @@ COMMAND_TEXT="$*"
   printf 'log=%s\n' "$LOG"
   printf 'timeout_seconds=%s\n' "$TIMEOUT_SECONDS"
   printf 'heartbeat_seconds=%s\n' "$HEARTBEAT_SECONDS"
+  printf 'stdin_mode=%s\n' "$STDIN_MODE"
   printf 'task=%s\n' "$TASK_LABEL"
   printf 'run_id=%s\n' "$RUN_ID"
   printf '\n'
 } > "$LOG"
 
+# cgrun is a workflow runner, never an interactive TTY frontend. Closing stdin
+# makes accidental read/select/prompt calls fail immediately with EOF instead
+# of waiting indefinitely for user input.
 if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
   if ! command -v timeout >/dev/null 2>&1; then
     fail "timeout_command_missing"
   fi
   timeout --foreground --signal=TERM --kill-after=5 "${TIMEOUT_SECONDS}s" \
-    bash -lc "$COMMAND_TEXT" >> "$LOG" 2>&1 &
+    bash -lc "$COMMAND_TEXT" </dev/null >> "$LOG" 2>&1 &
 else
-  bash -lc "$COMMAND_TEXT" >> "$LOG" 2>&1 &
+  bash -lc "$COMMAND_TEXT" </dev/null >> "$LOG" 2>&1 &
 fi
 PAYLOAD_PID=$!
 
@@ -118,9 +124,10 @@ printf '\n'
 printf '%s\n' '== cgrun core result =='
 printf 'command_exit_code=%s\n' "$COMMAND_EXIT_CODE"
 printf 'timed_out=%s\n' "$TIMED_OUT"
+printf 'stdin_mode=%s\n' "$STDIN_MODE"
 printf 'log=%s\n' "$LOG"
 printf 'latest=%s\n' "$OUT_DIR/latest.log"
-printf 'RESULT: CGRUN_CORE_DONE outcome=%s command_exit_code=%s timed_out=%s\n' \
-  "$OUTCOME" "$COMMAND_EXIT_CODE" "$TIMED_OUT"
+printf 'RESULT: CGRUN_CORE_DONE outcome=%s command_exit_code=%s timed_out=%s stdin_mode=%s\n' \
+  "$OUTCOME" "$COMMAND_EXIT_CODE" "$TIMED_OUT" "$STDIN_MODE"
 
 exit "$COMMAND_EXIT_CODE"

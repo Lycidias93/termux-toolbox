@@ -41,6 +41,11 @@ shadowed the files in `$PREFIX/bin`. The functions called the historical v9.3 co
 names and added a second AutoTail, so the clipboard handoff was overwritten and the obsolete
 `CGRUN_AUTO_TAIL_DONE rc=... original_cgrun_rc=...` marker returned.
 
+A further workflow reliability issue was that the background `bash -lc` payload inherited the
+interactive Termux stdin. A payload or child command that unexpectedly called `read`, `select`
+or another prompt-capable primitive could therefore block the entire workflow waiting for user
+input even though `cgrun` is intended to be noninteractive.
+
 ## Fixed architecture
 
 The repository now owns the full active runtime:
@@ -59,6 +64,12 @@ For normalized scripts, `cg-run-file` creates a unique temporary directory but k
 original artifact basename. Receipts therefore identify the user-visible artifact, not the
 normalization directory. The run mode is canonicalized before run-ID creation, so the lane,
 core metadata, receipt, AutoCopy handoff, and outer completion share one byte-identical run ID.
+
+`cgrun-core-v95` now always launches workflow payloads with stdin connected to `/dev/null`.
+There is no implicit interactive fallback. Prompt-capable code receives EOF immediately and
+must either handle that noninteractive condition or fail normally; it can no longer hold a
+workflow open waiting for Enter or another terminal response. The core records
+`stdin_mode=dev-null` in both metadata and its completion output.
 
 Repository verification is read-only with respect to tracked source files. Shell checks use
 `bash -n`, nested verifier scripts are invoked explicitly with `bash`, and the aggregate
@@ -90,13 +101,20 @@ and therefore remains reversible through the recorded backup.
 original basename, canonicalizes uppercase, mixed-case, and omitted modes to `verify`, and
 rejects unsupported run modes before they can create a divergent run ID.
 
+`verify/verify-cgrun-noninteractive-stdin.sh` runs an input-reading fixture through the real
+native core and requires it to receive EOF within a bounded time. It also requires the
+`AUTOCLIP_V95_STDIN_CLOSED` marker, `/dev/null` launch binding and
+`stdin_mode=dev-null` runtime evidence.
+
 `verify/verify-native-cg-shell-guard.sh` checks first application, backup creation, interactive
 file resolution, idempotent reapplication, and repair after a simulated legacy `.bashrc`
 restore.
 
-`verify/verify-termux-toolbox.sh` checks syntax without changing executable bits and emits
-`PASS verifier_worktree_immutable` only when its complete run leaves Git status unchanged.
+`verify/verify-termux-toolbox.sh` checks syntax without changing executable bits, includes the
+noninteractive stdin regression, and emits `PASS verifier_worktree_immutable` only when its
+complete run leaves Git status unchanged.
 
 `maintenance/verify-installed-cg-runtime.sh` checks syntax, executable state, markers, SHA-256
-parity, guard uniqueness and final position, and interactive file resolution for the wrapper,
-both native cores, compatibility shims, lane runtime, and `cg-run-file`.
+parity, guard uniqueness and final position, interactive file resolution, and a real installed
+core stdin-EOF probe for the wrapper, both native cores, compatibility shims, lane runtime,
+`cg-run-file`, and `cg-handoff`.
