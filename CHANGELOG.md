@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hardened `cg-handoff` against post-run Bash PS2 prompts from queued mobile paste tails: after `cg-run-file` completes, it preserves the workflow exit code, drains pending interactive TTY input, and only then returns to the parent shell. The installed-runtime verifier and regression fixture require this behavior.
 - Added `cg-handoff` v1, a metadata-driven two-argument frontend for ChatGPT `pixel_local__*.sh` downloads. It verifies the external SHA-256 before metadata use, binds lane/scope/host/route/secret/mode, stages atomically to `$TMPDIR`, verifies syntax and delegates exactly once to `cg-run-file`, replacing fragile long interactive paste launchers.
 - Added `maintenance/verify-cg-handoff-v1.sh` covering successful staging/binding/expected-marker propagation and fail-closed hash mismatch behavior; the installed-runtime gate now requires `cg-handoff` source parity and shell resolution.
 - Fixed `cg-run-file` stale lane locks left by interrupted runs: dead lock owners are recovered automatically while live owners remain fail-closed.

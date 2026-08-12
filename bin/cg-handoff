@@ -30,6 +30,30 @@ safe_token() {
   [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]]
 }
 
+# CG_HANDOFF_TTY_TAIL_DRAIN_V1
+# Chat/mobile copy surfaces can append a second pasted physical line after the
+# real launcher. A Markdown closing fence (three backticks) is enough to leave
+# interactive Bash at PS2 even though cg-run-file already completed. Drain any
+# queued type-ahead bytes before returning control to the parent interactive
+# shell. This is input-only; stdout/stderr and the cg-run-file exit code remain
+# unchanged. The cap prevents an unbounded drain if a device continuously feeds
+# the tty. Disable only for dedicated non-interactive testing with
+# CG_HANDOFF_TTY_DRAIN=0.
+drain_pending_tty_input() {
+  local tty="${CG_HANDOFF_TTY_PATH:-/dev/tty}" ch drained=0
+  [[ "${CG_HANDOFF_TTY_DRAIN:-1}" == "1" ]] || return 0
+  [[ -t 0 ]] || return 0
+  [[ -r "$tty" ]] || return 0
+
+  if IFS= read -r -s -n 1 -t 0.15 ch <"$tty"; then
+    drained=1
+    while [[ "$drained" -lt 4096 ]] && IFS= read -r -s -n 1 -t 0.01 ch <"$tty"; do
+      drained=$((drained + 1))
+    done
+    printf 'CG_HANDOFF_TTY_DRAIN bytes=%s result=PASS\n' "$drained"
+  fi
+}
+
 source_arg="${1:-}"
 expected_sha="${2:-}"
 [[ -n "$source_arg" && -n "$expected_sha" && "$#" -eq 2 ]] || { usage; fail invalid_arguments; }
@@ -117,4 +141,10 @@ published_sha="$(sha256sum "$dst" | awk '{print $1}')"
 export CGFLOW_EXPECTED_MARKER="$expected_marker"
 printf 'CG_HANDOFF_V1 source=%s staged=%s sha256=%s lane=%s mode=%s scope=%s host=%s route_class=%s secret_class=%s\n' \
   "$source_real" "$dst" "$expected_sha" "$lane" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
-exec cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
+
+set +e
+cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
+run_rc=$?
+set -e
+drain_pending_tty_input || true
+exit "$run_rc"
