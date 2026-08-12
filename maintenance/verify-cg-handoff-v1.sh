@@ -29,6 +29,9 @@ artifact="$WORK/Download/pixel_local__fixture.sh"
 } > "$artifact"
 chmod 0700 "$artifact"
 
+grep -Fq 'CG_HANDOFF_TTY_TAIL_DRAIN_V1' "$HANDOFF" || fail tty_tail_drain_marker_missing
+grep -Fq 'drain_pending_tty_input' "$HANDOFF" || fail tty_tail_drain_call_missing
+
 for name in cgprep cclear cgcurrent; do
   {
     printf '%s\n' '#!/usr/bin/env bash'
@@ -58,6 +61,17 @@ printf '%s\n' "$output" | grep -Fq 'CGUSE:chat-fixture pixel pixel read-only red
 printf '%s\n' "$output" | grep -Fq 'RUNFILE:' || fail run_file_missing
 printf '%s\n' "$output" | grep -Fq ' verify pixel pixel read-only redacted' || fail run_file_args_failed
 printf '%s\n' "$output" | grep -Fq 'MARKER:RESULT: FIXTURE_PASS' || fail expected_marker_failed
+
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'exit 7'
+} > "$WORK/bin/cg-run-file"
+chmod 0700 "$WORK/bin/cg-run-file"
+set +e
+PATH="$WORK/bin:$PATH" CG_HANDOFF_TTY_DRAIN=0 CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$sha" >/dev/null 2>&1
+run_rc=$?
+set -e
+[[ "$run_rc" -eq 7 ]] || fail run_file_exit_status_not_preserved
 
 set +e
 bad_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$(printf '0%.0s' {1..64})" 2>&1)"
