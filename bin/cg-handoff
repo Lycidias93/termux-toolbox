@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="cg-handoff-v1"
+VERSION="cg-handoff-v1.1"
 DOWNLOAD_ROOT="${CG_HANDOFF_DOWNLOAD_ROOT:-/storage/emulated/0/Download}"
 TMP_ROOT="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
 
@@ -30,27 +30,50 @@ safe_token() {
   [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]]
 }
 
-# CG_HANDOFF_TTY_TAIL_DRAIN_V1
-# Chat/mobile copy surfaces can append a second pasted physical line after the
-# real launcher. A Markdown closing fence (three backticks) is enough to leave
-# interactive Bash at PS2 even though cg-run-file already completed. Drain any
-# queued type-ahead bytes before returning control to the parent interactive
-# shell. This is input-only; stdout/stderr and the cg-run-file exit code remain
-# unchanged. The cap prevents an unbounded drain if a device continuously feeds
-# the tty. Disable only for dedicated non-interactive testing with
-# CG_HANDOFF_TTY_DRAIN=0.
+# CG_HANDOFF_TTY_TAIL_DRAIN_V2
+# Chat/mobile copy surfaces may append a second pasted physical line after the
+# real launcher. In observed Android/ChatGPT runs those bytes can arrive after
+# cg-run-file has already completed and later than the old one-shot 150 ms
+# probe, leaving interactive Bash at PS2. Keep the controlling tty open and use
+# a bounded settle window so late-arriving paste tail bytes are consumed before
+# control returns to the parent shell. Payload stdin remains unrelated and is
+# still closed by cgrun. The settle window is intentionally short and bounded;
+# disable only for dedicated non-interactive tests with CG_HANDOFF_TTY_DRAIN=0.
 drain_pending_tty_input() {
-  local tty="${CG_HANDOFF_TTY_PATH:-/dev/tty}" ch drained=0
-  [[ "${CG_HANDOFF_TTY_DRAIN:-1}" == "1" ]] || return 0
-  [[ -t 0 ]] || return 0
-  [[ -r "$tty" ]] || return 0
+  local tty="${CG_HANDOFF_TTY_PATH:-/dev/tty}"
+  local ch drained=0 polls=0 quiet=0
+  local max_bytes="${CG_HANDOFF_TTY_MAX_BYTES:-4096}"
+  local max_polls="${CG_HANDOFF_TTY_MAX_POLLS:-30}"
+  local quiet_polls="${CG_HANDOFF_TTY_QUIET_POLLS:-12}"
+  local poll_timeout="${CG_HANDOFF_TTY_POLL_TIMEOUT:-0.05}"
 
-  if IFS= read -r -s -n 1 -t 0.15 ch <"$tty"; then
-    drained=1
-    while [[ "$drained" -lt 4096 ]] && IFS= read -r -s -n 1 -t 0.01 ch <"$tty"; do
+  [[ "${CG_HANDOFF_TTY_DRAIN:-1}" == "1" ]] || return 0
+  [[ -r "$tty" && -w "$tty" ]] || return 0
+  [[ "$max_bytes" =~ ^[0-9]+$ && "$max_polls" =~ ^[0-9]+$ && "$quiet_polls" =~ ^[0-9]+$ ]] || return 0
+  (( max_bytes > 0 && max_polls > 0 && quiet_polls > 0 )) || return 0
+
+  # Do not depend on fd 0 being a tty. cg-handoff owns the controlling tty via
+  # /dev/tty even when a wrapper redirected stdin. Read/write open keeps FIFO
+  # fixtures nonblocking at open time and works for /dev/tty on Android/Termux.
+  exec 9<>"$tty" 2>/dev/null || return 0
+  while (( polls < max_polls && drained < max_bytes )); do
+    polls=$((polls + 1))
+    if IFS= read -r -s -n 1 -t "$poll_timeout" ch <&9; then
       drained=$((drained + 1))
-    done
-    printf 'CG_HANDOFF_TTY_DRAIN bytes=%s result=PASS\n' "$drained"
+      quiet=0
+      # Drain an already queued burst immediately before resuming settle polls.
+      while (( drained < max_bytes )) && IFS= read -r -s -n 1 -t 0.001 ch <&9; do
+        drained=$((drained + 1))
+      done
+    else
+      quiet=$((quiet + 1))
+      (( quiet >= quiet_polls )) && break
+    fi
+  done
+  exec 9<&- 9>&- 2>/dev/null || true
+
+  if (( drained > 0 )); then
+    printf 'CG_HANDOFF_TTY_DRAIN bytes=%s polls=%s result=PASS\n' "$drained" "$polls"
   fi
 }
 
