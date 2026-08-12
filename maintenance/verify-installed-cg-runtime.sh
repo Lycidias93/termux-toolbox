@@ -61,7 +61,11 @@ grep -Fq 'CG_MULTILANE_LOCK_BUSY' "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'lock_busy_autocopy_marker_missing'
 grep -Fq 'CG_HANDOFF_V1_START' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_metadata_contract_missing'
-grep -Fq 'exec cg-run-file' "$BIN_DIR/cg-handoff" \
+grep -Fq 'CG_HANDOFF_TTY_TAIL_DRAIN_V1' "$BIN_DIR/cg-handoff" \
+  || fail 'cg_handoff_tty_tail_drain_marker_missing'
+grep -Fq 'drain_pending_tty_input' "$BIN_DIR/cg-handoff" \
+  || fail 'cg_handoff_tty_tail_drain_call_missing'
+grep -Fq 'cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_run_file_entrypoint_missing'
 printf 'PASS: execution_receipt_contract\n'
 
@@ -144,5 +148,6 @@ printf 'PASS: native_shell_resolution shell_rc=%s\n' "$BASHRC"
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'run_file_driver_version=v1\n'
 printf 'handoff_version=v1\n'
+printf 'handoff_tty_tail_drain=v1\n'
 printf 'toolbox_head=%s\n' "$(git -C "$TOOLBOX" rev-parse HEAD 2>/dev/null || printf unknown)"
 printf 'RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0\n'
