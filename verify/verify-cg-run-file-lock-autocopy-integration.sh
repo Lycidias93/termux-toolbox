@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cg-run-file-lock-autocopy-integration.XXXXXX")"
+HOST_PATH="${PATH:?PATH is required}"
+HOST_LD_PRELOAD="${LD_PRELOAD:-}"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 PREFIX_DIR="$TMP_ROOT/prefix"
@@ -58,7 +60,8 @@ printf '%s\n' "$(date -Is)" > "$lock/created_at"
 
 run_rc=0
 if env -i \
-  PATH="$BIN_DIR:$PATH" \
+  PATH="$BIN_DIR:$HOST_PATH" \
+  LD_PRELOAD="$HOST_LD_PRELOAD" \
   PREFIX="$PREFIX_DIR" \
   HOME="$HOME_DIR" \
   TMPDIR="$TEST_TMP" \
@@ -78,10 +81,12 @@ fi
 
 [ "$run_rc" -eq 75 ] || {
   printf 'FAIL lock_busy_exit_code got=%s expected=75\n' "$run_rc"
+  cat "$OUTPUT" 2>/dev/null || true
   exit 1
 }
 [ -s "$CLIPBOARD" ] || {
   printf '%s\n' 'FAIL lock_busy_clipboard_missing'
+  cat "$OUTPUT" 2>/dev/null || true
   exit 1
 }
 
