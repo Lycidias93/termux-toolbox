@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HANDOFF="$ROOT/bin/cg-handoff"
+HANDOFF="${CG_HANDOFF_PATH:-$ROOT/bin/cg-handoff}"
 TMP_ROOT="${TMPDIR:-/tmp}"
 WORK="$(mktemp -d "$TMP_ROOT/cg-handoff-fixture.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM HUP
