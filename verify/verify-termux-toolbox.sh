@@ -120,6 +120,18 @@ else
   fail=1
 fi
 
+if [[ -f maintenance/verify-cg-handoff-v1.sh ]]; then
+  if bash maintenance/verify-cg-handoff-v1.sh; then
+    echo "PASS cg_handoff_delayed_tty_tail_contract"
+  else
+    echo "FAIL cg_handoff_delayed_tty_tail_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_handoff_verify_missing"
+  fail=1
+fi
+
 if [[ -f verify/verify-native-cg-shell-guard.sh ]]; then
   if bash verify/verify-native-cg-shell-guard.sh; then
     echo "PASS native_cg_shell_guard_contract"
