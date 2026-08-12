@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cg-run-file-lock-autocopy.XXXXXX")"
 HOST_PATH="${PATH:?PATH is required}"
+HOST_LD_PRELOAD="${LD_PRELOAD:-}"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 BIN="$TMP_ROOT/bin"
@@ -46,11 +47,12 @@ PAYLOAD
 chmod 0755 "$TMP/payload.sh"
 
 run_clean() {
-  # Keep the fixture hermetic for CG state while inheriting the host toolchain.
-  # Termux has no /usr/bin:/bin, so hardcoding those paths makes this verifier
-  # fail before it can exercise the lock contract.
+  # Keep CG state hermetic while retaining the host execution substrate.
+  # Termux needs both its PATH and termux-exec LD_PRELOAD for direct execution
+  # of scripts with portable /usr/bin/env shebangs inside the fixture.
   env -i \
     PATH="$BIN:$HOST_PATH" \
+    LD_PRELOAD="$HOST_LD_PRELOAD" \
     HOME="$HOME_DIR" \
     TMPDIR="$TMP" \
     CG_LANE_STATE_DIR="$STATE" \
