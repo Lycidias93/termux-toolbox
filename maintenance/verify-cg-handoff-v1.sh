@@ -51,7 +51,7 @@ chmod 0700 "$WORK/bin/cguse"
 chmod 0700 "$WORK/bin/cg-run-file"
 
 sha="$(sha256sum "$artifact" | awk '{print $1}')"
-output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" "$HANDOFF" "$(basename "$artifact")" "$sha")"
+output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$sha")"
 printf '%s\n' "$output"
 
 printf '%s\n' "$output" | grep -Fq 'CGUSE:chat-fixture pixel pixel read-only redacted' || fail cguse_binding_failed
@@ -60,7 +60,7 @@ printf '%s\n' "$output" | grep -Fq ' verify pixel pixel read-only redacted' || f
 printf '%s\n' "$output" | grep -Fq 'MARKER:RESULT: FIXTURE_PASS' || fail expected_marker_failed
 
 set +e
-bad_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" "$HANDOFF" "$(basename "$artifact")" "$(printf '0%.0s' {1..64})" 2>&1)"
+bad_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$(printf '0%.0s' {1..64})" 2>&1)"
 bad_rc=$?
 set -e
 [[ "$bad_rc" -eq 2 ]] || fail bad_hash_rc_failed
