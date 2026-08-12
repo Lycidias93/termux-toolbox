@@ -45,6 +45,7 @@ if [ "$inside_git" = "yes" ]; then
   git diff --check
 fi
 
+# Exclude known policy/tooling files that intentionally contain forbidden-pattern definitions.
 if grep -RInE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9_]+|github_pat_|AKIA[0-9A-Z]{16}|client_secret|refresh_token|access_token|password=|token=)' . \
   --exclude-dir=.git \
   --exclude='verify-termux-toolbox.sh' \
@@ -56,6 +57,7 @@ if grep -RInE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9_]+|github_
   exit 1
 fi
 
+# TERMUX_TOOLBOX_VERIFY_ARTIFACT_LANE_BINDING_V2_20260710
 for required in \
   'ASSISTANT_OUTPUT_GUARD_ARTIFACT_LANE_BINDING_V2_20260710' \
   'artifact_cgrun_requires_cg_run_file' \
@@ -71,32 +73,88 @@ do
 done
 
 if [[ -f verify/verify-cg-lane-secret-classes.sh ]]; then
-  if bash verify/verify-cg-lane-secret-classes.sh; then echo "PASS cg_lane_secret_class_contract"; else echo "FAIL cg_lane_secret_class_contract"; fail=1; fi
-else echo "FAIL cg_lane_secret_class_verify_missing"; fail=1; fi
+  if bash verify/verify-cg-lane-secret-classes.sh; then
+    echo "PASS cg_lane_secret_class_contract"
+  else
+    echo "FAIL cg_lane_secret_class_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_lane_secret_class_verify_missing"
+  fail=1
+fi
 
 if [[ -f verify/verify-cg-run-file-termux-shebang.sh ]]; then
-  if bash verify/verify-cg-run-file-termux-shebang.sh; then echo "PASS cg_run_file_termux_shebang_contract"; else echo "FAIL cg_run_file_termux_shebang_contract"; fail=1; fi
-else echo "FAIL cg_run_file_termux_shebang_verify_missing"; fail=1; fi
+  if bash verify/verify-cg-run-file-termux-shebang.sh; then
+    echo "PASS cg_run_file_termux_shebang_contract"
+  else
+    echo "FAIL cg_run_file_termux_shebang_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_run_file_termux_shebang_verify_missing"
+  fail=1
+fi
 
 if [[ -f verify/verify-cg-run-file-lock-autocopy.sh ]]; then
-  if bash verify/verify-cg-run-file-lock-autocopy.sh; then echo "PASS cg_run_file_lock_autocopy_contract"; else echo "FAIL cg_run_file_lock_autocopy_contract"; fail=1; fi
-else echo "FAIL cg_run_file_lock_autocopy_verify_missing"; fail=1; fi
+  if bash verify/verify-cg-run-file-lock-autocopy.sh; then
+    echo "PASS cg_run_file_lock_autocopy_contract"
+  else
+    echo "FAIL cg_run_file_lock_autocopy_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_run_file_lock_autocopy_verify_missing"
+  fail=1
+fi
 
 if [[ -f verify/verify-cg-run-file-lock-autocopy-integration.sh ]]; then
-  if bash verify/verify-cg-run-file-lock-autocopy-integration.sh; then echo "PASS cg_run_file_lock_autocopy_integration_contract"; else echo "FAIL cg_run_file_lock_autocopy_integration_contract"; fail=1; fi
-else echo "FAIL cg_run_file_lock_autocopy_integration_verify_missing"; fail=1; fi
+  if bash verify/verify-cg-run-file-lock-autocopy-integration.sh; then
+    echo "PASS cg_run_file_lock_autocopy_integration_contract"
+  else
+    echo "FAIL cg_run_file_lock_autocopy_integration_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_run_file_lock_autocopy_integration_verify_missing"
+  fail=1
+fi
 
 if [[ -f verify/verify-native-cg-shell-guard.sh ]]; then
-  if bash verify/verify-native-cg-shell-guard.sh; then echo "PASS native_cg_shell_guard_contract"; else echo "FAIL native_cg_shell_guard_contract"; fail=1; fi
-else echo "FAIL native_cg_shell_guard_verify_missing"; fail=1; fi
+  if bash verify/verify-native-cg-shell-guard.sh; then
+    echo "PASS native_cg_shell_guard_contract"
+  else
+    echo "FAIL native_cg_shell_guard_contract"
+    fail=1
+  fi
+else
+  echo "FAIL native_cg_shell_guard_verify_missing"
+  fail=1
+fi
 
 if [[ -f verify/verify-cg-execution-receipt.sh ]]; then
-  if bash verify/verify-cg-execution-receipt.sh; then echo "PASS cg_execution_receipt_contract"; else echo "FAIL cg_execution_receipt_contract"; fail=1; fi
-else echo "FAIL cg_execution_receipt_verify_missing"; fail=1; fi
+  if bash verify/verify-cg-execution-receipt.sh; then
+    echo "PASS cg_execution_receipt_contract"
+  else
+    echo "FAIL cg_execution_receipt_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_execution_receipt_verify_missing"
+  fail=1
+fi
 
 if [[ -f verify/verify-cgrun-noninteractive-stdin.sh ]]; then
-  if bash verify/verify-cgrun-noninteractive-stdin.sh; then echo "PASS cgrun_noninteractive_stdin_contract"; else echo "FAIL cgrun_noninteractive_stdin_contract"; fail=1; fi
-else echo "FAIL cgrun_noninteractive_stdin_verify_missing"; fail=1; fi
+  if bash verify/verify-cgrun-noninteractive-stdin.sh; then
+    echo "PASS cgrun_noninteractive_stdin_contract"
+  else
+    echo "FAIL cgrun_noninteractive_stdin_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cgrun_noninteractive_stdin_verify_missing"
+  fail=1
+fi
 
 if [ "$inside_git" = "yes" ]; then
   git status --porcelain=v2 --untracked-files=all > "$STATUS_AFTER"
