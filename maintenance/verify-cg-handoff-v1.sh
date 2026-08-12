@@ -29,8 +29,10 @@ artifact="$WORK/Download/pixel_local__fixture.sh"
 } > "$artifact"
 chmod 0700 "$artifact"
 
-grep -Fq 'CG_HANDOFF_TTY_TAIL_DRAIN_V1' "$HANDOFF" || fail tty_tail_drain_marker_missing
+grep -Fq 'CG_HANDOFF_TTY_TAIL_DRAIN_V2' "$HANDOFF" || fail tty_tail_drain_v2_marker_missing
 grep -Fq 'drain_pending_tty_input' "$HANDOFF" || fail tty_tail_drain_call_missing
+grep -Fq 'CG_HANDOFF_TTY_QUIET_POLLS' "$HANDOFF" || fail tty_tail_settle_window_missing
+grep -Fq 'exec 9<>"$tty"' "$HANDOFF" || fail tty_tail_controlling_tty_fd_missing
 
 for name in cgprep cclear cgcurrent; do
   {
@@ -46,13 +48,16 @@ done
 } > "$WORK/bin/cguse"
 chmod 0700 "$WORK/bin/cguse"
 
-{
-  printf '%s\n' '#!/usr/bin/env bash'
-  printf '%s\n' 'printf "RUNFILE:%s\n" "$*"'
-  printf '%s\n' 'printf "MARKER:%s\n" "${CGFLOW_EXPECTED_MARKER:-}"'
-} > "$WORK/bin/cg-run-file"
-chmod 0700 "$WORK/bin/cg-run-file"
+write_success_run_file() {
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'printf "RUNFILE:%s\n" "$*"'
+    printf '%s\n' 'printf "MARKER:%s\n" "${CGFLOW_EXPECTED_MARKER:-}"'
+  } > "$WORK/bin/cg-run-file"
+  chmod 0700 "$WORK/bin/cg-run-file"
+}
 
+write_success_run_file
 sha="$(sha256sum "$artifact" | awk '{print $1}')"
 output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$sha")"
 printf '%s\n' "$output"
@@ -61,6 +66,25 @@ printf '%s\n' "$output" | grep -Fq 'CGUSE:chat-fixture pixel pixel read-only red
 printf '%s\n' "$output" | grep -Fq 'RUNFILE:' || fail run_file_missing
 printf '%s\n' "$output" | grep -Fq ' verify pixel pixel read-only redacted' || fail run_file_args_failed
 printf '%s\n' "$output" | grep -Fq 'MARKER:RESULT: FIXTURE_PASS' || fail expected_marker_failed
+
+# Reproduce the Android/ChatGPT failure mode: a second pasted line appears only
+# after cg-run-file has already returned. The V2 settle window must still drain
+# it before cg-handoff returns to the parent shell.
+late_tty="$WORK/late-tty.fifo"
+mkfifo "$late_tty"
+{
+  sleep 0.25
+  printf '%s' '```' > "$late_tty"
+} &
+writer_pid=$!
+set +e
+late_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_PATH="$late_tty" CG_HANDOFF_TTY_DRAIN=1 CG_HANDOFF_TTY_MAX_POLLS=30 CG_HANDOFF_TTY_QUIET_POLLS=12 CG_HANDOFF_TTY_POLL_TIMEOUT=0.05 bash "$HANDOFF" "$(basename "$artifact")" "$sha" 2>&1)"
+late_rc=$?
+set -e
+wait "$writer_pid"
+[[ "$late_rc" -eq 0 ]] || fail late_tty_fixture_run_failed
+printf '%s\n' "$late_output" | grep -Eq 'CG_HANDOFF_TTY_DRAIN bytes=[3-9][0-9]* .*result=PASS|CG_HANDOFF_TTY_DRAIN bytes=3 .*result=PASS' || fail late_tty_tail_not_drained
+printf '%s\n' 'PASS delayed_tty_tail_drain'
 
 {
   printf '%s\n' '#!/usr/bin/env bash'
@@ -73,6 +97,7 @@ run_rc=$?
 set -e
 [[ "$run_rc" -eq 7 ]] || fail run_file_exit_status_not_preserved
 
+write_success_run_file
 set +e
 bad_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$(printf '0%.0s' {1..64})" 2>&1)"
 bad_rc=$?
