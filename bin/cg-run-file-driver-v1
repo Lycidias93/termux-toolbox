@@ -236,10 +236,10 @@ payload_main() {
       ;;
   esac
   case "$route" in
-    none|read-only) ;;
+    none|read-only|route|dns-ha|magicdns|subnet-route) ;;
     *)
-      fail "route_class_blocked_in_cg_multilane_v13 route_class=$route"
-      printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=route_class_blocked workflow_exit_code=71\n'
+      fail "route_class_unknown route_class=$route"
+      printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=route_class_unknown workflow_exit_code=71\n'
       exit 71
       ;;
   esac

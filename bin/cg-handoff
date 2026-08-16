@@ -4,11 +4,86 @@ set -euo pipefail
 VERSION="cg-handoff-v1.1"
 DOWNLOAD_ROOT="${CG_HANDOFF_DOWNLOAD_ROOT:-/storage/emulated/0/Download}"
 TMP_ROOT="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
+OUTPUT_ROOT="${CG_OUTPUT_DIR:-$HOME_DIR/.chatgpt-output}"
+STAMP="$(date +%Y%m%d_%H%M%S)"
+PREFLIGHT_LOG="$OUTPUT_ROOT/cg_handoff_preflight_${STAMP}_$$.log"
+AUTOCOPY_LOG="$OUTPUT_ROOT/cg_handoff_autocopy_${STAMP}_$$.log"
+lane="unbound"
+scope="unknown"
+host="unknown"
+route_class="unknown"
+secret_class="unknown"
+
+mkdir -p "$OUTPUT_ROOT" "$TMP_ROOT" 2>/dev/null || true
+: > "$PREFLIGHT_LOG" 2>/dev/null || true
+
+# CG_HANDOFF_EARLY_AUTOCOPY_V1
+write_failure_autocopy() {
+  local reason="$1" copy_mode="full" clipboard_rc=127 clip_command
+  case "${secret_class:-unknown}" in
+    none|public|redacted) copy_mode="full" ;;
+    *) copy_mode="redacted" ;;
+  esac
+
+  {
+    printf '%s\n' '== cg-handoff early failure AutoCopy =='
+    printf 'time=%s\n' "$(date -Is)"
+    printf 'handoff_version=%s\n' "$VERSION"
+    printf 'lane=%s\n' "${lane:-unbound}"
+    printf 'scope=%s\n' "${scope:-unknown}"
+    printf 'host=%s\n' "${host:-unknown}"
+    printf 'route_class=%s\n' "${route_class:-unknown}"
+    printf 'secret_class=%s\n' "${secret_class:-unknown}"
+    printf 'reason=%s\n' "$reason"
+    printf 'copy_mode=%s\n' "$copy_mode"
+    if [[ "$copy_mode" == "full" ]]; then
+      printf '%s\n' 'raw_handoff_suppressed=no'
+      if [[ -s "$PREFLIGHT_LOG" ]]; then
+        printf '%s\n' '== preflight transcript =='
+        cat "$PREFLIGHT_LOG"
+      fi
+    else
+      printf '%s\n' 'raw_handoff_suppressed=yes'
+    fi
+    printf 'FAIL: cg_handoff reason=%s\n' "$reason"
+    printf 'RESULT: CG_HANDOFF_STOP outcome=stop reason=%s workflow_exit_code=2\n' "$reason"
+  } > "$AUTOCOPY_LOG" 2>/dev/null || return 0
+
+  clip_command="${CG_HANDOFF_CLIPBOARD_COMMAND:-${CGRUN_CLIPBOARD_COMMAND:-}}"
+  if [[ -n "$clip_command" ]]; then
+    if bash "$clip_command" < "$AUTOCOPY_LOG"; then
+      clipboard_rc=0
+    else
+      clipboard_rc=$?
+    fi
+  elif command -v termux-clipboard-set >/dev/null 2>&1; then
+    if command -v timeout >/dev/null 2>&1; then
+      if timeout 10 termux-clipboard-set < "$AUTOCOPY_LOG"; then
+        clipboard_rc=0
+      else
+        clipboard_rc=$?
+      fi
+    elif termux-clipboard-set < "$AUTOCOPY_LOG"; then
+      clipboard_rc=0
+    else
+      clipboard_rc=$?
+    fi
+  fi
+
+  printf 'RESULT: CG_HANDOFF_EARLY_AUTOCOPY_DONE clipboard_exit_code=%s mode=%s source=%s reason=%s\n' \
+    "$clipboard_rc" "$copy_mode" "$AUTOCOPY_LOG" "$reason" >&2
+  return 0
+}
 
 fail() {
   local reason="$1"
   printf 'FAIL: cg_handoff reason=%s\n' "$reason" >&2
   printf 'RESULT: CG_HANDOFF_STOP outcome=stop reason=%s workflow_exit_code=2\n' "$reason" >&2
+  write_failure_autocopy "$reason" || true
+  if declare -F drain_pending_tty_input >/dev/null 2>&1; then
+    drain_pending_tty_input || true
+  fi
   exit 2
 }
 
@@ -28,6 +103,19 @@ field() {
 safe_token() {
   local value="$1"
   [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+run_preflight() {
+  local output rc
+  set +e
+  output="$("$@" 2>&1)"
+  rc=$?
+  set -e
+  if [[ -n "$output" ]]; then
+    printf '%s\n' "$output"
+    printf '%s\n' "$output" >> "$PREFLIGHT_LOG" 2>/dev/null || true
+  fi
+  return "$rc"
 }
 
 # CG_HANDOFF_TTY_TAIL_DRAIN_V2
@@ -52,16 +140,12 @@ drain_pending_tty_input() {
   [[ "$max_bytes" =~ ^[0-9]+$ && "$max_polls" =~ ^[0-9]+$ && "$quiet_polls" =~ ^[0-9]+$ ]] || return 0
   (( max_bytes > 0 && max_polls > 0 && quiet_polls > 0 )) || return 0
 
-  # Do not depend on fd 0 being a tty. cg-handoff owns the controlling tty via
-  # /dev/tty even when a wrapper redirected stdin. Read/write open keeps FIFO
-  # fixtures nonblocking at open time and works for /dev/tty on Android/Termux.
   exec 9<>"$tty" 2>/dev/null || return 0
   while (( polls < max_polls && drained < max_bytes )); do
     polls=$((polls + 1))
     if IFS= read -r -s -n 1 -t "$poll_timeout" ch <&9; then
       drained=$((drained + 1))
       quiet=0
-      # Drain an already queued burst immediately before resuming settle polls.
       while (( drained < max_bytes )) && IFS= read -r -s -n 1 -t 0.001 ch <&9; do
         drained=$((drained + 1))
       done
@@ -144,10 +228,10 @@ for command in cgprep cclear cgcurrent cguse cg-run-file bash install mv rm sha2
   command -v "$command" >/dev/null 2>&1 || fail "command_missing_${command}"
 done
 
-cgprep || fail cgprep_failed
-cclear || fail cclear_failed
-cgcurrent || fail cgcurrent_failed
-cguse "$lane" "$scope" "$host" "$route_class" "$secret_class" || fail cguse_failed
+run_preflight cgprep || fail cgprep_failed
+run_preflight cclear || fail cclear_failed
+run_preflight cgcurrent || fail cgcurrent_failed
+run_preflight cguse "$lane" "$scope" "$host" "$route_class" "$secret_class" || fail cguse_failed
 
 mkdir -p "$TMP_ROOT"
 dst="$TMP_ROOT/$basename"
@@ -165,6 +249,7 @@ export CGFLOW_EXPECTED_MARKER="$expected_marker"
 printf 'CG_HANDOFF_V1 source=%s staged=%s sha256=%s lane=%s mode=%s scope=%s host=%s route_class=%s secret_class=%s\n' \
   "$source_real" "$dst" "$expected_sha" "$lane" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
 
+rm -f -- "$PREFLIGHT_LOG" 2>/dev/null || true
 set +e
 cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
 run_rc=$?
