@@ -61,6 +61,10 @@ grep -Fq 'CG_MULTILANE_STALE_LOCK_RECOVERED' "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'stale_lock_recovery_marker_missing'
 grep -Fq 'CG_MULTILANE_LOCK_BUSY' "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'lock_busy_autocopy_marker_missing'
+grep -Fq 'none|read-only|route|dns-ha|magicdns|subnet-route' "$BIN_DIR/cg-lane.sh" \
+  || fail 'canonical_route_classes_missing_from_lane_guard'
+grep -Fq 'none|read-only|route|dns-ha|magicdns|subnet-route' "$BIN_DIR/cg-run-file-driver-v1" \
+  || fail 'canonical_route_classes_missing_from_run_driver'
 grep -Fq 'CG_HANDOFF_V1_START' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_metadata_contract_missing'
 grep -Fq 'CG_HANDOFF_TTY_TAIL_DRAIN_V2' "$BIN_DIR/cg-handoff" \
@@ -69,6 +73,8 @@ grep -Fq 'CG_HANDOFF_TTY_QUIET_POLLS' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_tty_tail_settle_window_missing'
 grep -Fq 'drain_pending_tty_input' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_tty_tail_drain_call_missing'
+grep -Fq 'CG_HANDOFF_EARLY_AUTOCOPY_V1' "$BIN_DIR/cg-handoff" \
+  || fail 'cg_handoff_early_autocopy_marker_missing'
 grep -Fq 'cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_run_file_entrypoint_missing'
 printf 'PASS: execution_receipt_contract\n'
@@ -157,7 +163,8 @@ printf 'PASS: cgrun_noninteractive_stdin_runtime\n'
 
 [[ -s "$TOOLBOX/maintenance/verify-cg-handoff-v1.sh" ]] \
   || fail 'cg_handoff_delayed_tty_verifier_missing'
-CG_HANDOFF_PATH="$BIN_DIR/cg-handoff" bash "$TOOLBOX/maintenance/verify-cg-handoff-v1.sh" \
+CG_HANDOFF_PATH="$BIN_DIR/cg-handoff" CG_LANE_PATH="$BIN_DIR/cg-lane.sh" \
+  bash "$TOOLBOX/maintenance/verify-cg-handoff-v1.sh" \
   || fail 'cg_handoff_delayed_tty_runtime_failed'
 printf 'PASS: cg_handoff_delayed_tty_runtime\n'
 
