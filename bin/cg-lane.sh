@@ -94,9 +94,9 @@ link_lane_latest() {
 route_guard() {
   local route_class="$1"
   case "$route_class" in
-    none|read-only) return 0 ;;
-    route-sensitive|dns-ha|magicdns|subnet-route|default-route)
-      die "route_class_blocked_in_cg_multilane_v13 route_class=$route_class"
+    none|read-only|route|dns-ha|magicdns|subnet-route) return 0 ;;
+    route-sensitive|default-route)
+      die "route_class_legacy_unsupported route_class=$route_class"
       ;;
     *) die "route_class_unknown route_class=$route_class" ;;
   esac
