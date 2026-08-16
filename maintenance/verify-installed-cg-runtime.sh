@@ -163,7 +163,9 @@ printf 'PASS: cgrun_noninteractive_stdin_runtime\n'
 
 [[ -s "$TOOLBOX/maintenance/verify-cg-handoff-v1.sh" ]] \
   || fail 'cg_handoff_delayed_tty_verifier_missing'
-CG_HANDOFF_PATH="$BIN_DIR/cg-handoff" CG_LANE_PATH="$BIN_DIR/cg-lane.sh" \
+CG_HANDOFF_PATH="$BIN_DIR/cg-handoff" \
+CG_LANE_PATH="$BIN_DIR/cg-lane.sh" \
+CG_RUN_FILE_DRIVER_PATH="$BIN_DIR/cg-run-file-driver-v1" \
   bash "$TOOLBOX/maintenance/verify-cg-handoff-v1.sh" \
   || fail 'cg_handoff_delayed_tty_runtime_failed'
 printf 'PASS: cg_handoff_delayed_tty_runtime\n'
