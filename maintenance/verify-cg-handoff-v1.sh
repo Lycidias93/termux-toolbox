@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HANDOFF="${CG_HANDOFF_PATH:-$ROOT/bin/cg-handoff}"
 LANE="${CG_LANE_PATH:-$ROOT/bin/cg-lane.sh}"
+DRIVER="${CG_RUN_FILE_DRIVER_PATH:-$ROOT/bin/cg-run-file-driver-v1}"
 TMP_ROOT="${TMPDIR:-/tmp}"
 WORK="$(mktemp -d "$TMP_ROOT/cg-handoff-fixture.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM HUP
@@ -45,6 +46,18 @@ for route_class in none read-only route dns-ha magicdns subnet-route; do
   grep -Fxq "CG_LANE_ROUTE_CLASS=$route_class" "$state/lanes/$lane_name/meta.env" || fail "route_class_meta_mismatch_${route_class}"
 done
 printf '%s\n' 'PASS canonical_route_classes'
+
+for route_class in none read-only route dns-ha magicdns subnet-route; do
+  driver_state="$WORK/driver-state-$route_class"
+  driver_output="$WORK/driver-output-$route_class"
+  mkdir -p "$driver_state/locks" "$driver_output"
+  driver_lane="driver-${route_class//[^a-z0-9._-]/-}"
+  driver_run="fixture-${route_class//[^a-z0-9._-]/-}"
+  driver_lock="lane-$driver_lane"
+  driver_result="$(CG_LANE_STATE_DIR="$driver_state" CG_OUTPUT_DIR="$driver_output" bash "$DRIVER" --payload "$artifact" verify "$driver_lane" pixel pi4 "$route_class" redacted "$driver_run" "$driver_lock" 2>&1)" || fail "driver_route_class_rejected_${route_class}"
+  printf '%s\n' "$driver_result" | grep -Fq 'CG_MULTILANE_PAYLOAD_DONE payload_exit_code=0' || fail "driver_route_class_payload_missing_${route_class}"
+done
+printf '%s\n' 'PASS canonical_driver_route_classes'
 
 for name in cgprep cclear cgcurrent; do
   {
