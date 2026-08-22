@@ -7,3 +7,9 @@ grep
 sed
 awk
 procps
+jq
+ripgrep
+fd
+fzf
+shellcheck
+shfmt

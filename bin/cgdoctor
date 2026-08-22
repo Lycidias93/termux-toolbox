@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+usage() {
+  printf '%s\n' \
+    'usage: cgdoctor [--quick]' \
+    '' \
+    'Read-only Termux/toolbox health check with machine-readable PASS/WARN/FAIL lines.'
+}
+
+quick=0
+case "${1:-}" in
+  '') ;;
+  --quick) quick=1 ;;
+  -h|--help) usage; exit 0 ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+warn=0
+fail=0
+pass() { printf 'PASS: %s\n' "$*"; }
+warning() { printf 'WARN: %s\n' "$*"; warn=$((warn + 1)); }
+failure() { printf 'FAIL: %s\n' "$*" >&2; fail=$((fail + 1)); }
+
+printf 'doctor_version=v1\n'
+printf 'timestamp=%s\n' "$(date -Is 2>/dev/null || date)"
+printf 'prefix=%s\n' "${PREFIX:-unset}"
+printf 'home=%s\n' "${HOME:-unset}"
+printf 'tmpdir=%s\n' "${TMPDIR:-unset}"
+
+for cmd in bash git grep sed find awk stat timeout; do
+  if command -v "$cmd" >/dev/null 2>&1; then
+    pass "required_command command=$cmd path=$(command -v "$cmd")"
+  else
+    failure "required_command_missing command=$cmd"
+  fi
+done
+
+for cmd in jq rg fd fzf shellcheck shfmt hyperfine socat strace; do
+  if command -v "$cmd" >/dev/null 2>&1; then
+    pass "recommended_command command=$cmd path=$(command -v "$cmd")"
+  else
+    warning "recommended_command_missing command=$cmd"
+  fi
+done
+
+if [[ -n "${PREFIX:-}" ]]; then
+  expected_tmp="$PREFIX/tmp"
+  if [[ "${TMPDIR:-}" == "$expected_tmp" ]]; then
+    pass "tmpdir_contract path=$TMPDIR"
+  elif [[ -z "${TMPDIR:-}" ]]; then
+    warning "tmpdir_unset expected=$expected_tmp"
+  else
+    failure "tmpdir_mismatch actual=${TMPDIR:-unset} expected=$expected_tmp"
+  fi
+fi
+
+for path in "${HOME:-}" "${TMPDIR:-}"; do
+  [[ -n "$path" && -d "$path" ]] || continue
+  available_kb="$(df -Pk "$path" 2>/dev/null | awk 'NR==2 {print $4}')"
+  if [[ "$available_kb" =~ ^[0-9]+$ ]]; then
+    printf 'INFO: filesystem_free path=%s available_kb=%s\n' "$path" "$available_kb"
+    if (( available_kb < 262144 )); then
+      warning "filesystem_low_space path=$path available_kb=$available_kb"
+    fi
+  else
+    warning "filesystem_probe_failed path=$path"
+  fi
+done
+
+if command -v dpkg-query >/dev/null 2>&1; then
+  termux_api_cli_version="$(dpkg-query -W -f='${Version}' termux-api 2>/dev/null || true)"
+  if [[ -n "$termux_api_cli_version" ]]; then
+    pass "termux_api_cli_package version=$termux_api_cli_version"
+  else
+    warning "termux_api_cli_package_not_installed"
+  fi
+fi
+
+if [[ "$quick" -eq 0 ]]; then
+  if command -v termux-battery-status >/dev/null 2>&1; then
+    api_tmp_base="${TMPDIR:-${HOME:-.}}"
+    api_tmp="$(mktemp "$api_tmp_base/cgdoctor-api.XXXXXX" 2>/dev/null || true)"
+    if [[ -n "$api_tmp" ]]; then
+      api_rc=0
+      timeout 5 termux-battery-status >"$api_tmp" 2>/dev/null || api_rc=$?
+      if [[ "$api_rc" -eq 0 && -s "$api_tmp" ]]; then
+        pass "termux_api_battery roundtrip=ok"
+      else
+        warning "termux_api_battery roundtrip=failed exit_code=$api_rc"
+      fi
+      rm -f "$api_tmp"
+    else
+      warning "termux_api_probe_tempfile_failed"
+    fi
+  else
+    warning "termux_api_battery_command_missing"
+  fi
+fi
+
+if [[ "$fail" -ne 0 ]]; then
+  printf 'RESULT: CGDOCTOR_FAIL failures=%s warnings=%s workflow_exit_code=1\n' "$fail" "$warn" >&2
+  exit 1
+fi
+if [[ "$warn" -ne 0 ]]; then
+  printf 'RESULT: CGDOCTOR_WARN failures=0 warnings=%s workflow_exit_code=0\n' "$warn"
+  exit 0
+fi
+printf 'RESULT: CGDOCTOR_DONE failures=0 warnings=0 workflow_exit_code=0\n'

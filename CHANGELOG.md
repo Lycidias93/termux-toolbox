@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added `cglint` for read-only shell artifact validation with parser checks, ShellCheck and `shfmt -d`.
+- Added `cgdoctor`, `cgfind` and `cgfail` for faster Termux health checks, repository search and bounded failure-marker diagnosis.
+- Added non-fatal `cgnotify` Android notifications through Termux:API, including a dry-run mode.
+- Extended the normal package baseline with `jq`, `ripgrep`, `fd`, `fzf`, `shellcheck` and `shfmt`; `hyperfine`, `socat` and `strace` remain optional diagnostic tools.
 - Made `cgrun`/`cg-run-file` permanently noninteractive at the execution boundary: the native core now launches every workflow payload with stdin bound to `/dev/null`, so accidental `read`/prompt calls receive EOF instead of waiting for user input.
 - Added source and installed-runtime regressions that execute an input-reading fixture and require `stdin_mode=dev-null` plus an immediate EOF result.
 - Hardened `cg-handoff` against post-run Bash PS2 prompts from queued mobile paste tails: after `cg-run-file` completes, it preserves the workflow exit code, drains pending interactive TTY input, and only then returns to the parent shell. The installed-runtime verifier and regression fixture require this behavior.
