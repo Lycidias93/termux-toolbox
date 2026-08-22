@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+usage() {
+  cat <<'EOF'
+usage: cglint FILE [FILE ...]
+
+Read-only shell artifact lint gate.
+Runs the parser, ShellCheck and shfmt diff checks without modifying files.
+EOF
+}
+
+if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  [[ $# -gt 0 ]] && exit 0
+  exit 2
+fi
+
+missing=0
+for cmd in shellcheck shfmt; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    printf 'FAIL: dependency_missing command=%s\n' "$cmd" >&2
+    missing=1
+  fi
+done
+if [[ "$missing" -ne 0 ]]; then
+  printf 'RESULT: CGLINT_BLOCKED outcome=dependency_missing workflow_exit_code=2\n' >&2
+  exit 2
+fi
+
+fail=0
+checked=0
+for file in "$@"; do
+  if [[ ! -f "$file" ]]; then
+    printf 'FAIL: file_missing path=%s\n' "$file" >&2
+    fail=1
+    continue
+  fi
+
+  shell=bash
+  first_line="$(IFS= read -r line < "$file"; printf '%s' "$line")"
+  case "$first_line" in
+    *'/sh'|*'/sh '*) shell=sh ;;
+    *'/dash'|*'/dash '*) shell=dash ;;
+    *'/ash'|*'/ash '*) shell=sh ;;
+    *'/bash'|*'/bash '*) shell=bash ;;
+  esac
+
+  parser_rc=0
+  if [[ "$shell" == "bash" ]]; then
+    bash -n "$file" || parser_rc=$?
+  else
+    sh -n "$file" || parser_rc=$?
+  fi
+  if [[ "$parser_rc" -ne 0 ]]; then
+    printf 'FAIL: parser path=%s shell=%s exit_code=%s\n' "$file" "$shell" "$parser_rc" >&2
+    fail=1
+    continue
+  fi
+
+  shellcheck_shell="$shell"
+  [[ "$shellcheck_shell" == "dash" ]] && shellcheck_shell=sh
+  if ! shellcheck -s "$shellcheck_shell" -- "$file"; then
+    printf 'FAIL: shellcheck path=%s shell=%s\n' "$file" "$shellcheck_shell" >&2
+    fail=1
+    continue
+  fi
+
+  if ! shfmt -d -- "$file"; then
+    printf 'FAIL: shfmt_diff path=%s\n' "$file" >&2
+    fail=1
+    continue
+  fi
+
+  checked=$((checked + 1))
+  printf 'PASS: cglint path=%s shell=%s\n' "$file" "$shell"
+done
+
+if [[ "$fail" -ne 0 ]]; then
+  printf 'RESULT: CGLINT_FAIL checked=%s workflow_exit_code=1\n' "$checked" >&2
+  exit 1
+fi
+printf 'RESULT: CGLINT_DONE checked=%s workflow_exit_code=0\n' "$checked"
