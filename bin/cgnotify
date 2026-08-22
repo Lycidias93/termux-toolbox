@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+usage() {
+  printf '%s\n' \
+    'usage: cgnotify [--dry-run] STATUS MESSAGE' \
+    '' \
+    'Send a bounded Android notification through Termux:API without affecting the caller exit status.'
+}
+
+dry_run=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  dry_run=1
+  shift
+fi
+if [[ $# -lt 2 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  [[ $# -ge 1 ]] && exit 0
+  exit 2
+fi
+
+status="$1"
+shift
+message="$*"
+status="$(printf '%s' "$status" | tr '\r\n' '  ' | cut -c1-48)"
+message="$(printf '%s' "$message" | tr '\r\n' '  ' | cut -c1-240)"
+title="${CGNOTIFY_TITLE:-Termux Toolbox}"
+notification_id="${CGNOTIFY_ID:-1842}"
+
+if [[ "$dry_run" -eq 1 ]]; then
+  printf 'PASS: cgnotify dry_run=yes status=%s message_length=%s\n' "$status" "${#message}"
+  printf 'RESULT: CGNOTIFY_DONE mode=dry_run workflow_exit_code=0\n'
+  exit 0
+fi
+
+if ! command -v termux-notification >/dev/null 2>&1; then
+  printf 'WARN: termux_notification_missing\n'
+  printf 'RESULT: CGNOTIFY_SKIPPED reason=command_missing workflow_exit_code=0\n'
+  exit 0
+fi
+
+notify_rc=0
+if command -v timeout >/dev/null 2>&1; then
+  timeout 5 termux-notification --id "$notification_id" --title "$title: $status" --content "$message" >/dev/null 2>&1 || notify_rc=$?
+else
+  termux-notification --id "$notification_id" --title "$title: $status" --content "$message" >/dev/null 2>&1 || notify_rc=$?
+fi
+
+if [[ "$notify_rc" -ne 0 ]]; then
+  printf 'WARN: cgnotify_failed notification_exit_code=%s\n' "$notify_rc"
+  printf 'RESULT: CGNOTIFY_DEGRADED notification_exit_code=%s workflow_exit_code=0\n' "$notify_rc"
+  exit 0
+fi
+printf 'RESULT: CGNOTIFY_DONE mode=android workflow_exit_code=0\n'
