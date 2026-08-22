@@ -27,17 +27,24 @@ check_file() {
   printf 'PASS: runtime_file path=%s\n' "$path"
 }
 
-for name in \
-  cgrun \
-  cgrun-core-v95 \
-  cgtail-core-v95 \
-  cgrun.autoclip-v93-real \
-  cgtail-autoclip-v93 \
-  cg-lane.sh \
-  cg-run-file-driver-v1 \
-  cg-run-file \
+runtime_names=(
+  cgrun
+  cgrun-core-v95
+  cgtail-core-v95
+  cgrun.autoclip-v93-real
+  cgtail-autoclip-v93
+  cg-lane.sh
+  cg-run-file-driver-v1
+  cg-run-file
   cg-handoff
-do
+  cglint
+  cgdoctor
+  cgfind
+  cgfail
+  cgnotify
+)
+
+for name in "${runtime_names[@]}"; do
   check_file "$BIN_DIR/$name"
   bash -n "$BIN_DIR/$name"
 done
@@ -79,17 +86,7 @@ grep -Fq 'cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secre
   || fail 'cg_handoff_run_file_entrypoint_missing'
 printf 'PASS: execution_receipt_contract\n'
 
-for name in \
-  cgrun \
-  cgrun-core-v95 \
-  cgtail-core-v95 \
-  cgrun.autoclip-v93-real \
-  cgtail-autoclip-v93 \
-  cg-lane.sh \
-  cg-run-file-driver-v1 \
-  cg-run-file \
-  cg-handoff
-do
+for name in "${runtime_names[@]}"; do
   source_file="$TOOLBOX/bin/$name"
   installed_file="$BIN_DIR/$name"
   [[ -f "$source_file" ]] || fail "source_file_missing path=$source_file"
@@ -170,10 +167,21 @@ CG_RUN_FILE_DRIVER_PATH="$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'cg_handoff_delayed_tty_runtime_failed'
 printf 'PASS: cg_handoff_delayed_tty_runtime\n'
 
+for name in cglint cgdoctor cgfind cgfail cgnotify; do
+  bash "$BIN_DIR/$name" --help >/dev/null 2>&1 \
+    || fail "toolkit_helper_help_failed name=$name"
+done
+bash "$BIN_DIR/cgdoctor" --quick >/dev/null \
+  || fail 'cgdoctor_quick_runtime_failed'
+bash "$BIN_DIR/cgnotify" --dry-run PASS 'installed runtime fixture' >/dev/null \
+  || fail 'cgnotify_dry_run_runtime_failed'
+printf 'PASS: toolkit_vnext_installed_smoke\n'
+
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'run_file_driver_version=v1\n'
 printf 'handoff_version=v1.1\n'
 printf 'handoff_tty_tail_drain=v2\n'
+printf 'toolkit_vnext=v1\n'
 printf 'stdin_mode=dev-null\n'
 printf 'toolbox_head=%s\n' "$(git -C "$TOOLBOX" rev-parse HEAD 2>/dev/null || printf unknown)"
 printf 'RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0\n'
