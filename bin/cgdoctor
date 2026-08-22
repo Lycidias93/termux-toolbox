@@ -28,7 +28,7 @@ printf 'prefix=%s\n' "${PREFIX:-unset}"
 printf 'home=%s\n' "${HOME:-unset}"
 printf 'tmpdir=%s\n' "${TMPDIR:-unset}"
 
-for cmd in bash git grep sed find awk coreutils; do
+for cmd in bash git grep sed find awk stat timeout; do
   if command -v "$cmd" >/dev/null 2>&1; then
     pass "required_command command=$cmd path=$(command -v "$cmd")"
   else
@@ -83,11 +83,7 @@ if [[ "$quick" -eq 0 ]]; then
     api_tmp="$(mktemp "$api_tmp_base/cgdoctor-api.XXXXXX" 2>/dev/null || true)"
     if [[ -n "$api_tmp" ]]; then
       api_rc=0
-      if command -v timeout >/dev/null 2>&1; then
-        timeout 5 termux-battery-status >"$api_tmp" 2>/dev/null || api_rc=$?
-      else
-        termux-battery-status >"$api_tmp" 2>/dev/null || api_rc=$?
-      fi
+      timeout 5 termux-battery-status >"$api_tmp" 2>/dev/null || api_rc=$?
       if [[ "$api_rc" -eq 0 && -s "$api_tmp" ]]; then
         pass "termux_api_battery roundtrip=ok"
       else
