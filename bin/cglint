@@ -2,12 +2,11 @@
 set -uo pipefail
 
 usage() {
-  cat <<'EOF'
-usage: cglint FILE [FILE ...]
-
-Read-only shell artifact lint gate.
-Runs the parser, ShellCheck and shfmt diff checks without modifying files.
-EOF
+  printf '%s\n' \
+    'usage: cglint FILE [FILE ...]' \
+    '' \
+    'Read-only shell artifact lint gate.' \
+    'Runs the parser, ShellCheck and shfmt diff checks without modifying files.'
 }
 
 if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
