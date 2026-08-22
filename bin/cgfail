@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+usage() {
+  printf '%s\n' \
+    'usage: cgfail [LOG]' \
+    '' \
+    'Print a bounded marker-only failure summary from a cgrun log.'
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+esac
+
+log="${1:-${HOME:-.}/.chatgpt-output/latest.log}"
+if [[ -L "$log" ]]; then
+  resolved="$(readlink -f "$log" 2>/dev/null || true)"
+  [[ -n "$resolved" ]] && log="$resolved"
+fi
+if [[ ! -f "$log" ]]; then
+  printf 'FAIL: log_missing path=%s\n' "$log" >&2
+  printf 'RESULT: CGFAIL_FAIL workflow_exit_code=2\n' >&2
+  exit 2
+fi
+
+printf 'log=%s\n' "$log"
+awk '
+  /^(RESULT:|FAIL:|FAIL |STOP:|STOP |NEXT=|SAFE_TO_)/ ||
+  /(^|[[:space:]])(command_exit_code|workflow_exit_code|helper_exit_code|handoff_exit_code|clipboard_exit_code)=[1-9][0-9]*/ {
+    ring[n % 120] = $0
+    n++
+  }
+  END {
+    count = n < 120 ? n : 120
+    start = n > 120 ? n % 120 : 0
+    for (i = 0; i < count; i++) print ring[(start + i) % 120]
+    printf "marker_count=%d\n", n
+  }
+' "$log"
+printf 'RESULT: CGFAIL_DONE workflow_exit_code=0\n'
