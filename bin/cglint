@@ -39,10 +39,10 @@ for file in "$@"; do
   shell=bash
   first_line="$(IFS= read -r line < "$file"; printf '%s' "$line")"
   case "$first_line" in
-    *'/sh'|*'/sh '*) shell=sh ;;
-    *'/dash'|*'/dash '*) shell=dash ;;
-    *'/ash'|*'/ash '*) shell=sh ;;
-    *'/bash'|*'/bash '*) shell=bash ;;
+    *'/dash'|*'/dash '*|*' env dash'*) shell=dash ;;
+    *'/ash'|*'/ash '*|*' env ash'*) shell=sh ;;
+    *'/bash'|*'/bash '*|*' env bash'*) shell=bash ;;
+    *'/sh'|*'/sh '*|*' env sh'*) shell=sh ;;
   esac
 
   parser_rc=0
