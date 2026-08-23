@@ -35,7 +35,11 @@ if [[ "$missing" -ne 0 ]]; then
 fi
 
 severity=warning
-[[ "$strict" == "yes" ]] && severity=style
+mode=default
+if [[ "$strict" == "yes" ]]; then
+	severity=style
+	mode=strict
+fi
 
 fail=0
 checked=0
@@ -89,7 +93,7 @@ for file in "$@"; do
 done
 
 if [[ "$fail" -ne 0 ]]; then
-	printf 'RESULT: CGLINT_FAIL checked=%s workflow_exit_code=1 mode=%s\n' "$checked" "$([[ "$strict" == "yes" ]] && printf strict || printf default)" >&2
+	printf 'RESULT: CGLINT_FAIL checked=%s workflow_exit_code=1 mode=%s\n' "$checked" "$mode" >&2
 	exit 1
 fi
-printf 'RESULT: CGLINT_DONE checked=%s workflow_exit_code=0 mode=%s\n' "$checked" "$([[ "$strict" == "yes" ]] && printf strict || printf default)"
+printf 'RESULT: CGLINT_DONE checked=%s workflow_exit_code=0 mode=%s\n' "$checked" "$mode"
