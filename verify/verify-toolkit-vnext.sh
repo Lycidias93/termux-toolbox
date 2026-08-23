@@ -27,15 +27,30 @@ if ! bash "$ROOT/bin/cglint" "$WORK/cglint-good.sh" > "$WORK/cglint-good.out" 2>
   cat "$WORK/cglint-good.out" >&2
   fail "cglint_positive_fixture_failed"
 fi
-grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0' "$WORK/cglint-good.out" || fail "cglint_positive_result_missing"
+grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default' "$WORK/cglint-good.out" || fail "cglint_positive_result_missing"
 printf 'PASS: cglint_positive_fixture\n'
 
-printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'value="alpha beta"' 'printf '\''%s\n'\'' $value' > "$WORK/cglint-bad.sh"
-if bash "$ROOT/bin/cglint" "$WORK/cglint-bad.sh" > "$WORK/cglint-bad.out" 2>&1; then
-  fail "cglint_negative_fixture_unexpected_success"
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'unused_value="alpha beta"' 'printf '\''%s\n'\'' "ok"' > "$WORK/cglint-warning-bad.sh"
+if bash "$ROOT/bin/cglint" "$WORK/cglint-warning-bad.sh" > "$WORK/cglint-warning-bad.out" 2>&1; then
+  fail "cglint_warning_negative_fixture_unexpected_success"
 fi
-grep -Fq 'RESULT: CGLINT_FAIL' "$WORK/cglint-bad.out" || fail "cglint_negative_result_missing"
-printf 'PASS: cglint_negative_fixture\n'
+grep -Fq 'RESULT: CGLINT_FAIL' "$WORK/cglint-warning-bad.out" || fail "cglint_warning_negative_result_missing"
+printf 'PASS: cglint_warning_negative_fixture\n'
+
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'value="alpha beta"' 'printf '\''%s\n'\'' $value' > "$WORK/cglint-info.sh"
+if ! bash "$ROOT/bin/cglint" "$WORK/cglint-info.sh" > "$WORK/cglint-info-default.out" 2>&1; then
+  cat "$WORK/cglint-info-default.out" >&2
+  fail "cglint_default_info_fixture_should_pass"
+fi
+grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default' "$WORK/cglint-info-default.out" || fail "cglint_default_info_result_missing"
+printf 'PASS: cglint_default_info_nonblocking_fixture\n'
+
+if bash "$ROOT/bin/cglint" --strict "$WORK/cglint-info.sh" > "$WORK/cglint-info-strict.out" 2>&1; then
+  fail "cglint_strict_info_fixture_unexpected_success"
+fi
+grep -Fq 'RESULT: CGLINT_FAIL' "$WORK/cglint-info-strict.out" || fail "cglint_strict_info_result_missing"
+grep -Fq 'mode=strict' "$WORK/cglint-info-strict.out" || fail "cglint_strict_mode_marker_missing"
+printf 'PASS: cglint_strict_info_fixture\n'
 
 printf '%s\n' 'alpha marker' 'beta marker' > "$WORK/search.txt"
 bash "$ROOT/bin/cgfind" 'beta marker' "$WORK" > "$WORK/cgfind.out"
