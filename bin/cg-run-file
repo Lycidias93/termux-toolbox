@@ -8,72 +8,72 @@ scope="${3:-}"
 
 driver="$(command -v cg-run-file-driver-v1 2>/dev/null || true)"
 if [ -z "$driver" ] || [ ! -s "$driver" ]; then
-  printf '%s\n' 'FAIL: cg_run_file_driver_missing name=cg-run-file-driver-v1' >&2
-  exit 127
+	printf '%s\n' 'FAIL: cg_run_file_driver_missing name=cg-run-file-driver-v1' >&2
+	exit 127
 fi
 
 delegate() {
-  bash "$driver" run "$1" "$mode" "$scope"
+	bash "$driver" run "$1" "$mode" "$scope"
 }
 
 first="$(head -n 1 "$script" 2>/dev/null || true)"
 case "$first" in
-  '#!/data/data/com.termux/files/usr/bin/bash'|'#!/data/data/com.termux/files/usr/bin/sh')
-    tmp_base="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
-    mkdir -p "$tmp_base"
-    normalized_dir="$(mktemp -d "$tmp_base/cg-run-file-normalized.XXXXXX")"
-    normalized="$normalized_dir/$(basename "$script")"
-    cleanup() { rm -rf "$normalized_dir" 2>/dev/null || true; }
-    trap cleanup EXIT INT TERM HUP
+'#!/data/data/com.termux/files/usr/bin/bash' | '#!/data/data/com.termux/files/usr/bin/sh')
+	tmp_base="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+	mkdir -p "$tmp_base"
+	normalized_dir="$(mktemp -d "$tmp_base/cg-run-file-normalized.XXXXXX")"
+	normalized="$normalized_dir/$(basename "$script")"
+	cleanup() { rm -rf "$normalized_dir" 2>/dev/null || true; }
+	trap cleanup EXIT INT TERM HUP
 
-    case "$first" in
-      '#!/data/data/com.termux/files/usr/bin/bash') normalized_shebang='#!/usr/bin/env bash' ;;
-      '#!/data/data/com.termux/files/usr/bin/sh') normalized_shebang='#!/usr/bin/env sh' ;;
-    esac
+	case "$first" in
+	'#!/data/data/com.termux/files/usr/bin/bash') normalized_shebang='#!/usr/bin/env bash' ;;
+	'#!/data/data/com.termux/files/usr/bin/sh') normalized_shebang='#!/usr/bin/env sh' ;;
+	esac
 
-    {
-      printf '%s\n' "$normalized_shebang"
-      tail -n +2 "$script"
-    } > "$normalized"
-    chmod 0755 "$normalized"
+	{
+		printf '%s\n' "$normalized_shebang"
+		tail -n +2 "$script"
+	} >"$normalized"
+	chmod 0755 "$normalized"
 
-    delegate "$normalized"
-    ;;
-  '#!/data/data/com.termux/files/usr/bin/python3'|'#!/usr/bin/env python3')
-    tmp_base="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
-    mkdir -p "$tmp_base"
-    normalized_dir="$(mktemp -d "$tmp_base/cg-run-file-normalized.XXXXXX")"
-    normalized="$normalized_dir/$(basename "$script")"
-    python_payload="$normalized_dir/payload.py"
-    cleanup() { rm -rf "$normalized_dir" 2>/dev/null || true; }
-    trap cleanup EXIT INT TERM HUP
+	delegate "$normalized"
+	;;
+'#!/data/data/com.termux/files/usr/bin/python3' | '#!/usr/bin/env python3')
+	tmp_base="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+	mkdir -p "$tmp_base"
+	normalized_dir="$(mktemp -d "$tmp_base/cg-run-file-normalized.XXXXXX")"
+	normalized="$normalized_dir/$(basename "$script")"
+	python_payload="$normalized_dir/payload.py"
+	cleanup() { rm -rf "$normalized_dir" 2>/dev/null || true; }
+	trap cleanup EXIT INT TERM HUP
 
-    {
-      printf '%s\n' '#!/usr/bin/env python3'
-      tail -n +2 "$script"
-    } > "$python_payload"
-    chmod 0644 "$python_payload"
+	{
+		printf '%s\n' '#!/usr/bin/env python3'
+		tail -n +2 "$script"
+	} >"$python_payload"
+	chmod 0644 "$python_payload"
 
-    command -v python3 >/dev/null 2>&1 || {
-      printf '%s\n' 'FAIL: python3_missing_for_python_artifact' >&2
-      exit 1
-    }
-    PYTHONPYCACHEPREFIX="$normalized_dir/pycache" python3 -m py_compile "$python_payload" || {
-      printf 'FAIL: python_artifact_syntax path=%s\n' "$script" >&2
-      exit 1
-    }
+	command -v python3 >/dev/null 2>&1 || {
+		printf '%s\n' 'FAIL: python3_missing_for_python_artifact' >&2
+		exit 1
+	}
+	PYTHONPYCACHEPREFIX="$normalized_dir/pycache" python3 -m py_compile "$python_payload" || {
+		printf 'FAIL: python_artifact_syntax path=%s\n' "$script" >&2
+		exit 1
+	}
 
-    printf -v python_payload_q '%q' "$python_payload"
-    {
-      printf '%s\n' '#!/usr/bin/env bash'
-      printf '%s\n' 'set -euo pipefail'
-      printf 'exec python3 %s\n' "$python_payload_q"
-    } > "$normalized"
-    chmod 0755 "$normalized"
+	printf -v python_payload_q '%q' "$python_payload"
+	{
+		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' 'set -euo pipefail'
+		printf 'exec python3 %s\n' "$python_payload_q"
+	} >"$normalized"
+	chmod 0755 "$normalized"
 
-    delegate "$normalized"
-    ;;
-  *)
-    exec bash "$driver" run "$script" "$mode" "$scope"
-    ;;
+	delegate "$normalized"
+	;;
+*)
+	exec bash "$driver" run "$script" "$mode" "$scope"
+	;;
 esac
