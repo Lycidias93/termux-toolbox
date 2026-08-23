@@ -8,6 +8,7 @@ AUDIT="$ROOT/maintenance/termux-environment-audit.sh"
 UPDATE="$ROOT/maintenance/update-termux-and-toolbox.sh"
 SHELL_GUARD="$ROOT/maintenance/ensure-native-cg-shell-guard.sh"
 RUNTIME_VERIFY="$ROOT/maintenance/verify-installed-cg-runtime.sh"
+DOCTOR="$PREFIX_DIR/bin/cgdoctor"
 
 section() {
   printf '\n== %s ==\n' "$1"
@@ -28,6 +29,7 @@ printf 'old_python_directory_delete=no\n'
 printf 'toolbox_git_update=fast_forward_only\n'
 printf 'native_shell_shadow_guard=required\n'
 printf 'installed_runtime_verify=required\n'
+printf 'toolkit_health_doctor=required_after_runtime_verify\n'
 
 section "preflight"
 for command_name in bash git pkg dpkg apt-get python pip sha256sum stat find; do
@@ -56,6 +58,11 @@ PREFIX="$PREFIX_DIR" bash "$SHELL_GUARD"
 
 section "installed_runtime_verify"
 PREFIX="$PREFIX_DIR" TERMUX_TOOLBOX_REPO="$ROOT" bash "$RUNTIME_VERIFY"
+
+section "toolkit_health_doctor"
+[[ -x "$DOCTOR" ]] || fail "cgdoctor_missing path=$DOCTOR"
+"$DOCTOR" --quick || fail "cgdoctor_quick_failed"
+printf 'PASS: toolkit_health_doctor\n'
 
 section "final"
 printf 'RESULT: TERMUX_TOOLBOX_MAINTENANCE_DONE outcome=success workflow_exit_code=0\n'
