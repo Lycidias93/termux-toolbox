@@ -22,8 +22,7 @@ for name in \
 	cgrun-core-v95 \
 	cgtail-core-v95 \
 	cgrun.autoclip-v93-real \
-	cgtail-autoclip-v93
-do
+	cgtail-autoclip-v93; do
 	install -m 0755 "$ROOT/bin/$name" "$BIN_DIR/$name"
 done
 
