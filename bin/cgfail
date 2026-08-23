@@ -2,25 +2,28 @@
 set -uo pipefail
 
 usage() {
-  printf '%s\n' \
-    'usage: cgfail [LOG]' \
-    '' \
-    'Print a bounded marker-only failure summary from a cgrun log.'
+	printf '%s\n' \
+		'usage: cgfail [LOG]' \
+		'' \
+		'Print a bounded marker-only failure summary from a cgrun log.'
 }
 
 case "${1:-}" in
-  -h|--help) usage; exit 0 ;;
+-h | --help)
+	usage
+	exit 0
+	;;
 esac
 
 log="${1:-${HOME:-.}/.chatgpt-output/latest.log}"
 if [[ -L "$log" ]]; then
-  resolved="$(readlink -f "$log" 2>/dev/null || true)"
-  [[ -n "$resolved" ]] && log="$resolved"
+	resolved="$(readlink -f "$log" 2>/dev/null || true)"
+	[[ -n "$resolved" ]] && log="$resolved"
 fi
 if [[ ! -f "$log" ]]; then
-  printf 'FAIL: log_missing path=%s\n' "$log" >&2
-  printf 'RESULT: CGFAIL_FAIL workflow_exit_code=2\n' >&2
-  exit 2
+	printf 'FAIL: log_missing path=%s\n' "$log" >&2
+	printf 'RESULT: CGFAIL_FAIL workflow_exit_code=2\n' >&2
+	exit 2
 fi
 
 printf 'log=%s\n' "$log"

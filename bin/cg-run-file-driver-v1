@@ -14,102 +14,102 @@ log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; }
 
 safe_token() {
-  local value="${1:-unknown}"
-  value="${value##*/}"
-  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._@+-' '_')"
-  value="${value##_}"
-  value="${value%%_}"
-  [ -n "$value" ] || value="unknown"
-  printf '%.120s\n' "$value"
+	local value="${1:-unknown}"
+	value="${value##*/}"
+	value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._@+-' '_')"
+	value="${value##_}"
+	value="${value%%_}"
+	[ -n "$value" ] || value="unknown"
+	printf '%.120s\n' "$value"
 }
 
 sanitize_id() {
-  local raw="${1:-}" label="${2:-id}"
-  [ -n "$raw" ] || return 1
-  raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
-  case "$raw" in
-    *[!a-z0-9._-]* ) return 1 ;;
-  esac
-  [ "${#raw}" -le 80 ] || return 1
-  printf '%s\n' "$raw"
+	local raw="${1:-}"
+	[ -n "$raw" ] || return 1
+	raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+	case "$raw" in
+	*[!a-z0-9._-]*) return 1 ;;
+	esac
+	[ "${#raw}" -le 80 ] || return 1
+	printf '%s\n' "$raw"
 }
 
 require_init() {
-  mkdir -p "$LANES_DIR" "$LOCKS_DIR" "$RUNS_DIR" "$OUTPUT_DIR"
+	mkdir -p "$LANES_DIR" "$LOCKS_DIR" "$RUNS_DIR" "$OUTPUT_DIR"
 }
 
 meta_path() {
-  local lane="$1"
-  printf '%s/%s/meta.env\n' "$LANES_DIR" "$lane"
+	local lane="$1"
+	printf '%s/%s/meta.env\n' "$LANES_DIR" "$lane"
 }
 
 read_meta_value() {
-  local lane="$1" key="$2" file
-  file="$(meta_path "$lane")"
-  [ -f "$file" ] || return 1
-  awk -F= -v k="$key" '$1==k {print substr($0, length($1)+2)}' "$file" | tail -n 1
+	local lane="$1" key="$2" file
+	file="$(meta_path "$lane")"
+	[ -f "$file" ] || return 1
+	awk -F= -v k="$key" '$1==k {print substr($0, length($1)+2)}' "$file" | tail -n 1
 }
 
 current_lane() {
-  local lane
-  [ -s "$CURRENT_FILE" ] || return 1
-  lane="$(cat "$CURRENT_FILE")"
-  sanitize_id "$lane" lane
+	local lane
+	[ -s "$CURRENT_FILE" ] || return 1
+	lane="$(cat "$CURRENT_FILE")"
+	sanitize_id "$lane" lane
 }
 
 latest_global_log() {
-  local p="$OUTPUT_DIR/latest.log"
-  if [ -L "$p" ] || [ -f "$p" ]; then
-    readlink -f "$p" 2>/dev/null || printf '%s\n' "$p"
-  fi
+	local p="$OUTPUT_DIR/latest.log"
+	if [ -L "$p" ] || [ -f "$p" ]; then
+		readlink -f "$p" 2>/dev/null || printf '%s\n' "$p"
+	fi
 }
 
 link_lane_latest() {
-  local lane="$1" run_id="$2" log_path="$3"
-  [ -n "$log_path" ] || return 0
-  [ -f "$log_path" ] || return 0
-  mkdir -p "$LANES_DIR/$lane"
-  ln -sfn "$log_path" "$LANES_DIR/$lane/latest.log"
-  printf '%s\n' "$log_path" > "$LANES_DIR/$lane/latest.path"
-  printf '%s\n' "$run_id" > "$LANES_DIR/$lane/latest.run_id"
+	local lane="$1" run_id="$2" log_path="$3"
+	[ -n "$log_path" ] || return 0
+	[ -f "$log_path" ] || return 0
+	mkdir -p "$LANES_DIR/$lane"
+	ln -sfn "$log_path" "$LANES_DIR/$lane/latest.log"
+	printf '%s\n' "$log_path" >"$LANES_DIR/$lane/latest.path"
+	printf '%s\n' "$run_id" >"$LANES_DIR/$lane/latest.run_id"
 }
 
 proc_start_ticks() {
-  local pid="$1"
-  awk '{print $22}' "/proc/$pid/stat" 2>/dev/null || true
+	local pid="$1"
+	awk '{print $22}' "/proc/$pid/stat" 2>/dev/null || true
 }
 
 lock_owner_is_live() {
-  local path="$1" pid stored_start current_start cmdline
-  pid="$(cat "$path/pid" 2>/dev/null || true)"
-  case "$pid" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  kill -0 "$pid" 2>/dev/null || return 1
+	local path="$1" pid stored_start current_start cmdline
+	pid="$(cat "$path/pid" 2>/dev/null || true)"
+	case "$pid" in
+	'' | *[!0-9]*) return 1 ;;
+	esac
+	kill -0 "$pid" 2>/dev/null || return 1
 
-  stored_start="$(cat "$path/pid_start_ticks" 2>/dev/null || true)"
-  current_start="$(proc_start_ticks "$pid")"
-  if [ -n "$stored_start" ]; then
-    [ -n "$current_start" ] && [ "$stored_start" = "$current_start" ]
-    return
-  fi
+	stored_start="$(cat "$path/pid_start_ticks" 2>/dev/null || true)"
+	current_start="$(proc_start_ticks "$pid")"
+	if [ -n "$stored_start" ]; then
+		[ -n "$current_start" ] && [ "$stored_start" = "$current_start" ]
+		return
+	fi
 
-  cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
-  case "$cmdline" in
-    *cg-lane.sh*|*cg-run-file-driver-v1*|*cg-run-file*|*cgrun*) return 0 ;;
-  esac
-  return 1
+	cmdline="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
+	case "$cmdline" in
+	*cg-lane.sh* | *cg-run-file-driver-v1* | *cg-run-file* | *cgrun*) return 0 ;;
+	esac
+	return 1
 }
 
 write_lock_owner() {
-  local path="$1" run_id="$2" start_ticks
-  printf '%s\n' "$run_id" > "$path/run_id"
-  printf '%s\n' "$$" > "$path/pid"
-  start_ticks="$(proc_start_ticks "$$")"
-  if [ -n "$start_ticks" ]; then
-    printf '%s\n' "$start_ticks" > "$path/pid_start_ticks"
-  fi
-  printf '%s\n' "$(date -Is)" > "$path/created_at"
+	local path="$1" run_id="$2" start_ticks
+	printf '%s\n' "$run_id" >"$path/run_id"
+	printf '%s\n' "$$" >"$path/pid"
+	start_ticks="$(proc_start_ticks "$$")"
+	if [ -n "$start_ticks" ]; then
+		printf '%s\n' "$start_ticks" >"$path/pid_start_ticks"
+	fi
+	printf '%s\n' "$(date -Is)" >"$path/created_at"
 }
 
 LOCK_OWNED="no"
@@ -117,288 +117,290 @@ LOCK_PATH=""
 LOCK_RUN_ID=""
 
 release_owned_lock() {
-  local holder
-  [ "$LOCK_OWNED" = "yes" ] || return 0
-  [ -n "$LOCK_PATH" ] || return 0
-  [ -d "$LOCK_PATH" ] || { LOCK_OWNED="no"; return 0; }
-  holder="$(cat "$LOCK_PATH/run_id" 2>/dev/null || true)"
-  if [ "$holder" = "$LOCK_RUN_ID" ]; then
-    rm -rf "$LOCK_PATH" 2>/dev/null || true
-  fi
-  LOCK_OWNED="no"
+	local holder
+	[ "$LOCK_OWNED" = "yes" ] || return 0
+	[ -n "$LOCK_PATH" ] || return 0
+	[ -d "$LOCK_PATH" ] || {
+		LOCK_OWNED="no"
+		return 0
+	}
+	holder="$(cat "$LOCK_PATH/run_id" 2>/dev/null || true)"
+	if [ "$holder" = "$LOCK_RUN_ID" ]; then
+		rm -rf "$LOCK_PATH" 2>/dev/null || true
+	fi
+	LOCK_OWNED="no"
 }
 
 acquire_lock_payload() {
-  local lock_name="$1" run_id="$2" path holder stale_path
-  path="$LOCKS_DIR/$lock_name"
+	local lock_name="$1" run_id="$2" path holder stale_path
+	path="$LOCKS_DIR/$lock_name"
 
-  if mkdir "$path" 2>/dev/null; then
-    write_lock_owner "$path" "$run_id"
-    LOCK_OWNED="yes"
-    LOCK_PATH="$path"
-    LOCK_RUN_ID="$run_id"
-    return 0
-  fi
+	if mkdir "$path" 2>/dev/null; then
+		write_lock_owner "$path" "$run_id"
+		LOCK_OWNED="yes"
+		LOCK_PATH="$path"
+		LOCK_RUN_ID="$run_id"
+		return 0
+	fi
 
-  holder="$(cat "$path/run_id" 2>/dev/null || true)"
-  if lock_owner_is_live "$path"; then
-    fail "lock_busy lock=$lock_name holder=${holder:-unknown}"
-    printf 'RESULT: CG_MULTILANE_LOCK_BUSY outcome=blocked lock=%s holder=%s workflow_exit_code=75\n' \
-      "$lock_name" "${holder:-unknown}"
-    return 75
-  fi
+	holder="$(cat "$path/run_id" 2>/dev/null || true)"
+	if lock_owner_is_live "$path"; then
+		fail "lock_busy lock=$lock_name holder=${holder:-unknown}"
+		printf 'RESULT: CG_MULTILANE_LOCK_BUSY outcome=blocked lock=%s holder=%s workflow_exit_code=75\n' \
+			"$lock_name" "${holder:-unknown}"
+		return 75
+	fi
 
-  stale_path="${path}.stale.${run_id}.$$"
-  if mv "$path" "$stale_path" 2>/dev/null; then
-    printf 'RESULT: CG_MULTILANE_STALE_LOCK_RECOVERED lock=%s holder=%s\n' \
-      "$lock_name" "${holder:-unknown}"
-    rm -rf "$stale_path" 2>/dev/null || true
-  fi
+	stale_path="${path}.stale.${run_id}.$$"
+	if mv "$path" "$stale_path" 2>/dev/null; then
+		printf 'RESULT: CG_MULTILANE_STALE_LOCK_RECOVERED lock=%s holder=%s\n' \
+			"$lock_name" "${holder:-unknown}"
+		rm -rf "$stale_path" 2>/dev/null || true
+	fi
 
-  if mkdir "$path" 2>/dev/null; then
-    write_lock_owner "$path" "$run_id"
-    LOCK_OWNED="yes"
-    LOCK_PATH="$path"
-    LOCK_RUN_ID="$run_id"
-    return 0
-  fi
+	if mkdir "$path" 2>/dev/null; then
+		write_lock_owner "$path" "$run_id"
+		LOCK_OWNED="yes"
+		LOCK_PATH="$path"
+		LOCK_RUN_ID="$run_id"
+		return 0
+	fi
 
-  holder="$(cat "$path/run_id" 2>/dev/null || true)"
-  fail "lock_busy lock=$lock_name holder=${holder:-unknown}"
-  printf 'RESULT: CG_MULTILANE_LOCK_BUSY outcome=blocked lock=%s holder=%s workflow_exit_code=75\n' \
-    "$lock_name" "${holder:-unknown}"
-  return 75
+	holder="$(cat "$path/run_id" 2>/dev/null || true)"
+	fail "lock_busy lock=$lock_name holder=${holder:-unknown}"
+	printf 'RESULT: CG_MULTILANE_LOCK_BUSY outcome=blocked lock=%s holder=%s workflow_exit_code=75\n' \
+		"$lock_name" "${holder:-unknown}"
+	return 75
 }
 
 verify_payload_script() {
-  local script="$1" first
-  [ -f "$script" ] || {
-    fail "script_missing path=$script"
-    printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_missing workflow_exit_code=72\n'
-    return 72
-  }
-  [ -s "$script" ] || {
-    fail "script_empty path=$script"
-    printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_empty workflow_exit_code=72\n'
-    return 72
-  }
-  if grep -q $'\r' "$script"; then
-    fail "script_crlf_present path=$script"
-    printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_crlf workflow_exit_code=72\n'
-    return 72
-  fi
-  first="$(head -n 1 "$script")"
-  case "$first" in
-    '#!/usr/bin/env bash'|'#!/bin/bash'|'#!/system/bin/sh'|'#!/usr/bin/env sh'|'#!/bin/sh') ;;
-    *)
-      fail "script_shebang_missing_or_unsupported first_line=$first"
-      printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_shebang workflow_exit_code=72\n'
-      return 72
-      ;;
-  esac
-  [ -x "$script" ] || {
-    fail "script_not_executable path=$script"
-    printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_not_executable workflow_exit_code=72\n'
-    return 72
-  }
-  case "$first" in
-    '#!/usr/bin/env bash'|'#!/bin/bash')
-      bash -n "$script" || {
-        fail "script_bash_syntax path=$script"
-        printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_syntax workflow_exit_code=72\n'
-        return 72
-      }
-      ;;
-    *)
-      sh -n "$script" || {
-        fail "script_sh_syntax path=$script"
-        printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_syntax workflow_exit_code=72\n'
-        return 72
-      }
-      ;;
-  esac
+	local script="$1" first
+	[ -f "$script" ] || {
+		fail "script_missing path=$script"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_missing workflow_exit_code=72\n'
+		return 72
+	}
+	[ -s "$script" ] || {
+		fail "script_empty path=$script"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_empty workflow_exit_code=72\n'
+		return 72
+	}
+	if grep -q $'\r' "$script"; then
+		fail "script_crlf_present path=$script"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_crlf workflow_exit_code=72\n'
+		return 72
+	fi
+	first="$(head -n 1 "$script")"
+	case "$first" in
+	'#!/usr/bin/env bash' | '#!/bin/bash' | '#!/system/bin/sh' | '#!/usr/bin/env sh' | '#!/bin/sh') ;;
+	*)
+		fail "script_shebang_missing_or_unsupported first_line=$first"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_shebang workflow_exit_code=72\n'
+		return 72
+		;;
+	esac
+	[ -x "$script" ] || {
+		fail "script_not_executable path=$script"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_not_executable workflow_exit_code=72\n'
+		return 72
+	}
+	case "$first" in
+	'#!/usr/bin/env bash' | '#!/bin/bash')
+		bash -n "$script" || {
+			fail "script_bash_syntax path=$script"
+			printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_syntax workflow_exit_code=72\n'
+			return 72
+		}
+		;;
+	*)
+		sh -n "$script" || {
+			fail "script_sh_syntax path=$script"
+			printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=script_syntax workflow_exit_code=72\n'
+			return 72
+		}
+		;;
+	esac
 }
 
 payload_main() {
-  local script="${1:-}" mode="${2:-}" lane="${3:-}" scope="${4:-}"
-  local host="${5:-}" route="${6:-}" secret="${7:-}" run_id="${8:-}"
-  local lock_name="${9:-}" payload_exit_code
+	local script="${1:-}" mode="${2:-}" lane="${3:-}" scope="${4:-}"
+	local host="${5:-}" route="${6:-}" secret="${7:-}" run_id="${8:-}"
+	local lock_name="${9:-}" payload_exit_code
 
-  printf 'CG_MULTILANE_HEADER lane=%s run_id=%s mode=%s scope=%s host=%s route_class=%s secret_class=%s script=%s\n' \
-    "$lane" "$run_id" "$mode" "$scope" "$host" "$route" "$secret" "$script"
+	printf 'CG_MULTILANE_HEADER lane=%s run_id=%s mode=%s scope=%s host=%s route_class=%s secret_class=%s script=%s\n' \
+		"$lane" "$run_id" "$mode" "$scope" "$host" "$route" "$secret" "$script"
 
-  case "$mode" in
-    verify|run) ;;
-    *)
-      fail "run_mode_invalid value=$mode allowed=verify|run"
-      printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=run_mode_invalid workflow_exit_code=71\n'
-      exit 71
-      ;;
-  esac
-  case "$route" in
-    none|read-only|route|dns-ha|magicdns|subnet-route) ;;
-    *)
-      fail "route_class_unknown route_class=$route"
-      printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=route_class_unknown workflow_exit_code=71\n'
-      exit 71
-      ;;
-  esac
-  case "$secret" in
-    none|public|redacted|possible|sensitive) ;;
-    *)
-      fail "secret_class_unknown secret_class=$secret"
-      printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=secret_class_unknown workflow_exit_code=71\n'
-      exit 71
-      ;;
-  esac
+	case "$mode" in
+	verify | run) ;;
+	*)
+		fail "run_mode_invalid value=$mode allowed=verify|run"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=run_mode_invalid workflow_exit_code=71\n'
+		exit 71
+		;;
+	esac
+	case "$route" in
+	none | read-only | route | dns-ha | magicdns | subnet-route) ;;
+	*)
+		fail "route_class_unknown route_class=$route"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=route_class_unknown workflow_exit_code=71\n'
+		exit 71
+		;;
+	esac
+	case "$secret" in
+	none | public | redacted | possible | sensitive) ;;
+	*)
+		fail "secret_class_unknown secret_class=$secret"
+		printf 'RESULT: CG_MULTILANE_RUN_FILE_PREFLIGHT_FAILED outcome=secret_class_unknown workflow_exit_code=71\n'
+		exit 71
+		;;
+	esac
 
-  verify_payload_script "$script" || exit $?
-  acquire_lock_payload "$lock_name" "$run_id" || exit $?
+	verify_payload_script "$script" || exit $?
+	acquire_lock_payload "$lock_name" "$run_id" || exit $?
 
-  trap 'release_owned_lock' EXIT
-  trap 'release_owned_lock; exit 130' INT
-  trap 'release_owned_lock; exit 143' TERM
-  trap 'release_owned_lock; exit 129' HUP
+	trap 'release_owned_lock' EXIT
+	trap 'release_owned_lock; exit 130' INT
+	trap 'release_owned_lock; exit 143' TERM
+	trap 'release_owned_lock; exit 129' HUP
 
-  printf '%s\n' 'CG_MULTILANE_PAYLOAD_START'
-  set +e
-  bash "$script"
-  payload_exit_code=$?
-  set -e
-  printf 'CG_MULTILANE_PAYLOAD_DONE payload_exit_code=%s\n' "$payload_exit_code"
-  exit "$payload_exit_code"
+	printf '%s\n' 'CG_MULTILANE_PAYLOAD_START'
+	set +e
+	bash "$script"
+	payload_exit_code=$?
+	set -e
+	printf 'CG_MULTILANE_PAYLOAD_DONE payload_exit_code=%s\n' "$payload_exit_code"
+	exit "$payload_exit_code"
 }
 
 run_main() {
-  require_init
-  local script="${1:-}" mode="${2:-verify}" scope_arg="${3:-}"
-  local lane scope host route secret run_id run_dir lock_name log_path rc
-  local task_label payload_cmd self_q script_q mode_q lane_q scope_q host_q route_q secret_q run_id_q lock_q
-  local outcome result_marker
+	require_init
+	local script="${1:-}" mode="${2:-verify}" scope_arg="${3:-}"
+	local lane scope host route secret run_id run_dir lock_name log_path rc
+	local task_label payload_cmd self_q script_q mode_q lane_q scope_q host_q route_q secret_q run_id_q lock_q
+	local outcome result_marker
 
-  command -v cgrun >/dev/null 2>&1 || {
-    fail "cgrun_missing"
-    printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=cgrun_missing workflow_exit_code=127\n'
-    return 127
-  }
+	command -v cgrun >/dev/null 2>&1 || {
+		fail "cgrun_missing"
+		printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=cgrun_missing workflow_exit_code=127\n'
+		return 127
+	}
 
-  lane="$(current_lane || true)"
-  [ -n "$lane" ] || {
-    fail "lane_unbound"
-    printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_unbound workflow_exit_code=70\n'
-    return 70
-  }
+	lane="$(current_lane || true)"
+	[ -n "$lane" ] || {
+		fail "lane_unbound"
+		printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_unbound workflow_exit_code=70\n'
+		return 70
+	}
 
-  scope="${scope_arg:-$(read_meta_value "$lane" CG_LANE_SCOPE 2>/dev/null || printf 'pixel')}"
-  host="$(read_meta_value "$lane" CG_LANE_HOST 2>/dev/null || printf 'pixel-local')"
-  route="$(read_meta_value "$lane" CG_LANE_ROUTE_CLASS 2>/dev/null || printf 'none')"
-  secret="$(read_meta_value "$lane" CG_LANE_SECRET_CLASS 2>/dev/null || printf 'none')"
-  script="$(readlink -f "$script" 2>/dev/null || printf '%s' "$script")"
-  task_label="$(safe_token "${script:-unknown}")"
+	scope="${scope_arg:-$(read_meta_value "$lane" CG_LANE_SCOPE 2>/dev/null || printf 'pixel')}"
+	host="$(read_meta_value "$lane" CG_LANE_HOST 2>/dev/null || printf 'pixel-local')"
+	route="$(read_meta_value "$lane" CG_LANE_ROUTE_CLASS 2>/dev/null || printf 'none')"
+	secret="$(read_meta_value "$lane" CG_LANE_SECRET_CLASS 2>/dev/null || printf 'none')"
+	script="$(readlink -f "$script" 2>/dev/null || printf '%s' "$script")"
+	task_label="$(safe_token "${script:-unknown}")"
 
-  run_id="$(date +%Y%m%d_%H%M%S)_${lane}_${mode}_${scope}_$$_$RANDOM"
-  run_dir="$RUNS_DIR/$run_id"
-  lock_name="lane-$lane"
-  mkdir -p "$run_dir"
+	run_id="$(date +%Y%m%d_%H%M%S)_${lane}_${mode}_${scope}_$$_$RANDOM"
+	run_dir="$RUNS_DIR/$run_id"
+	lock_name="lane-$lane"
+	mkdir -p "$run_dir"
 
-  {
-    printf 'CG_LANE_VERSION=%s\n' 'cg-multilane-v1.3'
-    printf 'CG_RUN_FILE_DRIVER_VERSION=%s\n' "$VERSION"
-    printf 'CG_LANE_ID=%s\n' "$lane"
-    printf 'CG_RUN_ID=%s\n' "$run_id"
-    printf 'CG_RUN_MODE=%s\n' "$mode"
-    printf 'CG_RUN_SCOPE=%s\n' "$scope"
-    printf 'CG_RUN_HOST=%s\n' "$host"
-    printf 'CG_RUN_ROUTE_CLASS=%s\n' "$route"
-    printf 'CG_RUN_SECRET_CLASS=%s\n' "$secret"
-    printf 'CG_RUN_SCRIPT=%s\n' "$script"
-    printf 'CG_RUN_TASK=%s\n' "$task_label"
-    printf 'CG_RUN_STARTED_AT=%s\n' "$(date -Is)"
-  } > "$run_dir/meta.env"
+	{
+		printf 'CG_LANE_VERSION=%s\n' 'cg-multilane-v1.3'
+		printf 'CG_RUN_FILE_DRIVER_VERSION=%s\n' "$VERSION"
+		printf 'CG_LANE_ID=%s\n' "$lane"
+		printf 'CG_RUN_ID=%s\n' "$run_id"
+		printf 'CG_RUN_MODE=%s\n' "$mode"
+		printf 'CG_RUN_SCOPE=%s\n' "$scope"
+		printf 'CG_RUN_HOST=%s\n' "$host"
+		printf 'CG_RUN_ROUTE_CLASS=%s\n' "$route"
+		printf 'CG_RUN_SECRET_CLASS=%s\n' "$secret"
+		printf 'CG_RUN_SCRIPT=%s\n' "$script"
+		printf 'CG_RUN_TASK=%s\n' "$task_label"
+		printf 'CG_RUN_STARTED_AT=%s\n' "$(date -Is)"
+	} >"$run_dir/meta.env"
 
-  printf -v self_q '%q' "$SELF"
-  printf -v script_q '%q' "$script"
-  printf -v mode_q '%q' "$mode"
-  printf -v lane_q '%q' "$lane"
-  printf -v scope_q '%q' "$scope"
-  printf -v host_q '%q' "$host"
-  printf -v route_q '%q' "$route"
-  printf -v secret_q '%q' "$secret"
-  printf -v run_id_q '%q' "$run_id"
-  printf -v lock_q '%q' "$lock_name"
-  payload_cmd="bash $self_q --payload $script_q $mode_q $lane_q $scope_q $host_q $route_q $secret_q $run_id_q $lock_q"
+	printf -v self_q '%q' "$SELF"
+	printf -v script_q '%q' "$script"
+	printf -v mode_q '%q' "$mode"
+	printf -v lane_q '%q' "$lane"
+	printf -v scope_q '%q' "$scope"
+	printf -v host_q '%q' "$host"
+	printf -v route_q '%q' "$route"
+	printf -v secret_q '%q' "$secret"
+	printf -v run_id_q '%q' "$run_id"
+	printf -v lock_q '%q' "$lock_name"
+	payload_cmd="bash $self_q --payload $script_q $mode_q $lane_q $scope_q $host_q $route_q $secret_q $run_id_q $lock_q"
 
-  rc=0
-  if CG_LANE_ID="$lane" \
-     CG_LANE_SCOPE="$scope" \
-     CG_LANE_HOST="$host" \
-     CG_LANE_ROUTE_CLASS="$route" \
-     CG_LANE_SECRET_CLASS="$secret" \
-     CG_RUN_ID="$run_id" \
-     CG_RUN_MODE="$mode" \
-     CG_RUN_SCOPE="$scope" \
-     CG_RUN_HOST="$host" \
-     CG_RUN_SCRIPT="$script" \
-     CG_RUN_TASK="$task_label" \
-       cgrun "$payload_cmd"
-  then
-    rc=0
-  else
-    rc=$?
-  fi
+	rc=0
+	if CG_LANE_ID="$lane" \
+		CG_LANE_SCOPE="$scope" \
+		CG_LANE_HOST="$host" \
+		CG_LANE_ROUTE_CLASS="$route" \
+		CG_LANE_SECRET_CLASS="$secret" \
+		CG_RUN_ID="$run_id" \
+		CG_RUN_MODE="$mode" \
+		CG_RUN_SCOPE="$scope" \
+		CG_RUN_HOST="$host" \
+		CG_RUN_SCRIPT="$script" \
+		CG_RUN_TASK="$task_label" \
+		cgrun "$payload_cmd"; then
+		rc=0
+	else
+		rc=$?
+	fi
 
-  log_path="$(latest_global_log || true)"
-  if [ -n "$log_path" ]; then
-    printf '%s\n' "$log_path" > "$run_dir/log.path"
-    link_lane_latest "$lane" "$run_id" "$log_path"
-  fi
-  printf '%s\n' "$rc" > "$run_dir/rc"
-  printf '%s\n' "$rc" > "$run_dir/workflow_exit_code"
-  printf '%s\n' "$(date -Is)" > "$run_dir/finished_at"
+	log_path="$(latest_global_log || true)"
+	if [ -n "$log_path" ]; then
+		printf '%s\n' "$log_path" >"$run_dir/log.path"
+		link_lane_latest "$lane" "$run_id" "$log_path"
+	fi
+	printf '%s\n' "$rc" >"$run_dir/rc"
+	printf '%s\n' "$rc" >"$run_dir/workflow_exit_code"
+	printf '%s\n' "$(date -Is)" >"$run_dir/finished_at"
 
-  if [ "$rc" -eq 0 ]; then
-    outcome="success"
-    result_marker="CG_MULTILANE_RUN_FILE_OK"
-  elif [ "$rc" -eq 75 ]; then
-    outcome="lock_busy"
-    result_marker="CG_MULTILANE_RUN_FILE_BLOCKED"
-    fail "$result_marker outcome=$outcome workflow_exit_code=$rc chat_lane=$lane task=$task_label run_id=$run_id log=$log_path"
-  else
-    outcome="payload_failed"
-    result_marker="CG_MULTILANE_RUN_FILE_FAILED"
-    fail "$result_marker outcome=$outcome workflow_exit_code=$rc chat_lane=$lane task=$task_label run_id=$run_id log=$log_path"
-  fi
+	if [ "$rc" -eq 0 ]; then
+		outcome="success"
+		result_marker="CG_MULTILANE_RUN_FILE_OK"
+	elif [ "$rc" -eq 75 ]; then
+		outcome="lock_busy"
+		result_marker="CG_MULTILANE_RUN_FILE_BLOCKED"
+		fail "$result_marker outcome=$outcome workflow_exit_code=$rc chat_lane=$lane task=$task_label run_id=$run_id log=$log_path"
+	else
+		outcome="payload_failed"
+		result_marker="CG_MULTILANE_RUN_FILE_FAILED"
+		fail "$result_marker outcome=$outcome workflow_exit_code=$rc chat_lane=$lane task=$task_label run_id=$run_id log=$log_path"
+	fi
 
-  log "== cg multilane completion =="
-  log "outcome=$outcome"
-  log "chat_lane=$lane"
-  log "task=$task_label"
-  log "scope=$scope"
-  log "host=$host"
-  log "route_class=$route"
-  log "secret_class=$secret"
-  log "run_id=$run_id"
-  log "workflow_exit_code=$rc"
-  log "log_path=$log_path"
-  log "RESULT: $result_marker outcome=$outcome chat_lane=$lane task=$task_label run_id=$run_id workflow_exit_code=$rc log=$log_path"
-  return "$rc"
+	log "== cg multilane completion =="
+	log "outcome=$outcome"
+	log "chat_lane=$lane"
+	log "task=$task_label"
+	log "scope=$scope"
+	log "host=$host"
+	log "route_class=$route"
+	log "secret_class=$secret"
+	log "run_id=$run_id"
+	log "workflow_exit_code=$rc"
+	log "log_path=$log_path"
+	log "RESULT: $result_marker outcome=$outcome chat_lane=$lane task=$task_label run_id=$run_id workflow_exit_code=$rc log=$log_path"
+	return "$rc"
 }
 
 main() {
-  local cmd="${1:-}"
-  shift || true
-  case "$cmd" in
-    run) run_main "$@" ;;
-    --payload) payload_main "$@" ;;
-    -h|--help|help|'')
-      printf '%s\n' 'Usage: cg-run-file-driver-v1 run <script> [mode] [scope]'
-      ;;
-    *)
-      fail "unknown_command=$cmd"
-      printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=unknown_command workflow_exit_code=64\n'
-      return 64
-      ;;
-  esac
+	local cmd="${1:-}"
+	shift || true
+	case "$cmd" in
+	run) run_main "$@" ;;
+	--payload) payload_main "$@" ;;
+	-h | --help | help | '')
+		printf '%s\n' 'Usage: cg-run-file-driver-v1 run <script> [mode] [scope]'
+		;;
+	*)
+		fail "unknown_command=$cmd"
+		printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=unknown_command workflow_exit_code=64\n'
+		return 64
+		;;
+	esac
 }
 
 main "$@"

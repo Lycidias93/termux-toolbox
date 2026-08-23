@@ -2,44 +2,44 @@
 set -uo pipefail
 
 usage() {
-  printf '%s\n' \
-    'usage: cgfind QUERY [ROOT]' \
-    '' \
-    'Fast literal repository/filesystem search. Uses ripgrep when available and grep as fallback.'
+	printf '%s\n' \
+		'usage: cgfind QUERY [ROOT]' \
+		'' \
+		'Fast literal repository/filesystem search. Uses ripgrep when available and grep as fallback.'
 }
 
 if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  usage
-  [[ $# -gt 0 ]] && exit 0
-  exit 2
+	usage
+	[[ $# -gt 0 ]] && exit 0
+	exit 2
 fi
 
 query="$1"
 root="${2:-.}"
 if [[ ! -d "$root" ]]; then
-  printf 'FAIL: search_root_missing path=%s\n' "$root" >&2
-  printf 'RESULT: CGFIND_FAIL workflow_exit_code=2\n' >&2
-  exit 2
+	printf 'FAIL: search_root_missing path=%s\n' "$root" >&2
+	printf 'RESULT: CGFIND_FAIL workflow_exit_code=2\n' >&2
+	exit 2
 fi
 
 search_rc=0
 if command -v rg >/dev/null 2>&1; then
-  rg -F -n --hidden --glob '!.git/**' -- "$query" "$root" || search_rc=$?
-  engine=rg
+	rg -F -n --hidden --glob '!.git/**' -- "$query" "$root" || search_rc=$?
+	engine="rg"
 else
-  grep -RFn --exclude-dir=.git -- "$query" "$root" || search_rc=$?
-  engine=grep
+	grep -RFn --exclude-dir=.git -- "$query" "$root" || search_rc=$?
+	engine="grep"
 fi
 
 case "$search_rc" in
-  0)
-    printf 'RESULT: CGFIND_DONE engine=%s matches=yes workflow_exit_code=0\n' "$engine"
-    ;;
-  1)
-    printf 'RESULT: CGFIND_DONE engine=%s matches=no workflow_exit_code=0\n' "$engine"
-    ;;
-  *)
-    printf 'RESULT: CGFIND_FAIL engine=%s search_exit_code=%s workflow_exit_code=%s\n' "$engine" "$search_rc" "$search_rc" >&2
-    exit "$search_rc"
-    ;;
+0)
+	printf 'RESULT: CGFIND_DONE engine=%s matches=yes workflow_exit_code=0\n' "$engine"
+	;;
+1)
+	printf 'RESULT: CGFIND_DONE engine=%s matches=no workflow_exit_code=0\n' "$engine"
+	;;
+*)
+	printf 'RESULT: CGFIND_FAIL engine=%s search_exit_code=%s workflow_exit_code=%s\n' "$engine" "$search_rc" "$search_rc" >&2
+	exit "$search_rc"
+	;;
 esac

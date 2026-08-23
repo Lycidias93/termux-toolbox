@@ -13,16 +13,16 @@ RUN_ID="${CG_RUN_ID:-none}"
 STDIN_MODE="dev-null"
 
 is_uint() {
-  case "${1:-}" in
-    ''|*[!0-9]*) return 1 ;;
-    *) return 0 ;;
-  esac
+	case "${1:-}" in
+	'' | *[!0-9]*) return 1 ;;
+	*) return 0 ;;
+	esac
 }
 
 fail() {
-  printf 'FAIL: %s\n' "$1" >&2
-  printf 'RESULT: CGRUN_CORE_FAILED outcome=%s command_exit_code=2\n' "$1" >&2
-  exit 2
+	printf 'FAIL: %s\n' "$1" >&2
+	printf 'RESULT: CGRUN_CORE_FAILED outcome=%s command_exit_code=2\n' "$1" >&2
+	exit 2
 }
 
 [ "$#" -gt 0 ] || fail "command_missing"
@@ -38,63 +38,63 @@ TIMED_OUT="no"
 COMMAND_TEXT="$*"
 
 {
-  printf '%s\n' '== cgrun metadata =='
-  date -Is 2>/dev/null || date
-  printf 'pwd=%s\n' "$PWD"
-  printf 'log=%s\n' "$LOG"
-  printf 'timeout_seconds=%s\n' "$TIMEOUT_SECONDS"
-  printf 'heartbeat_seconds=%s\n' "$HEARTBEAT_SECONDS"
-  printf 'stdin_mode=%s\n' "$STDIN_MODE"
-  printf 'task=%s\n' "$TASK_LABEL"
-  printf 'run_id=%s\n' "$RUN_ID"
-  printf '\n'
-} > "$LOG"
+	printf '%s\n' '== cgrun metadata =='
+	date -Is 2>/dev/null || date
+	printf 'pwd=%s\n' "$PWD"
+	printf 'log=%s\n' "$LOG"
+	printf 'timeout_seconds=%s\n' "$TIMEOUT_SECONDS"
+	printf 'heartbeat_seconds=%s\n' "$HEARTBEAT_SECONDS"
+	printf 'stdin_mode=%s\n' "$STDIN_MODE"
+	printf 'task=%s\n' "$TASK_LABEL"
+	printf 'run_id=%s\n' "$RUN_ID"
+	printf '\n'
+} >"$LOG"
 
 # cgrun is a workflow runner, never an interactive TTY frontend. Closing stdin
 # makes accidental read/select/prompt calls fail immediately with EOF instead
 # of waiting indefinitely for user input.
 if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
-  if ! command -v timeout >/dev/null 2>&1; then
-    fail "timeout_command_missing"
-  fi
-  timeout --foreground --signal=TERM --kill-after=5 "${TIMEOUT_SECONDS}s" \
-    bash -lc "$COMMAND_TEXT" </dev/null >> "$LOG" 2>&1 &
+	if ! command -v timeout >/dev/null 2>&1; then
+		fail "timeout_command_missing"
+	fi
+	timeout --foreground --signal=TERM --kill-after=5 "${TIMEOUT_SECONDS}s" \
+		bash -lc "$COMMAND_TEXT" </dev/null >>"$LOG" 2>&1 &
 else
-  bash -lc "$COMMAND_TEXT" </dev/null >> "$LOG" 2>&1 &
+	bash -lc "$COMMAND_TEXT" </dev/null >>"$LOG" 2>&1 &
 fi
 PAYLOAD_PID=$!
 
 emit_heartbeat() {
-  local now elapsed bytes lines
-  now="$(date +%s)"
-  elapsed=$((now - START_EPOCH))
-  bytes="$(wc -c < "$LOG" | tr -d '[:space:]')"
-  lines="$(wc -l < "$LOG" | tr -d '[:space:]')"
+	local now elapsed bytes lines
+	now="$(date +%s)"
+	elapsed=$((now - START_EPOCH))
+	bytes="$(wc -c <"$LOG" | tr -d '[:space:]')"
+	lines="$(wc -l <"$LOG" | tr -d '[:space:]')"
 
-  printf '\n'
-  printf '%s\n' '== cgrun heartbeat =='
-  date -Is 2>/dev/null || date
-  printf 'phase=payload_running pid=%s alive=yes elapsed_seconds=%s log_bytes=%s log_lines=%s\n' \
-    "$PAYLOAD_PID" "$elapsed" "$bytes" "$lines"
-  printf '%s\n' '-- log tail --'
-  tail -n "$HEARTBEAT_TAIL_LINES" "$LOG" 2>/dev/null || true
+	printf '\n'
+	printf '%s\n' '== cgrun heartbeat =='
+	date -Is 2>/dev/null || date
+	printf 'phase=payload_running pid=%s alive=yes elapsed_seconds=%s log_bytes=%s log_lines=%s\n' \
+		"$PAYLOAD_PID" "$elapsed" "$bytes" "$lines"
+	printf '%s\n' '-- log tail --'
+	tail -n "$HEARTBEAT_TAIL_LINES" "$LOG" 2>/dev/null || true
 }
 
 if [ "$HEARTBEAT_SECONDS" -gt 0 ]; then
-  emit_heartbeat
+	emit_heartbeat
 fi
 
 NEXT_HEARTBEAT=$HEARTBEAT_SECONDS
 while kill -0 "$PAYLOAD_PID" 2>/dev/null; do
-  sleep 1
-  if [ "$HEARTBEAT_SECONDS" -gt 0 ]; then
-    NOW="$(date +%s)"
-    ELAPSED=$((NOW - START_EPOCH))
-    if [ "$ELAPSED" -ge "$NEXT_HEARTBEAT" ]; then
-      emit_heartbeat
-      NEXT_HEARTBEAT=$((NEXT_HEARTBEAT + HEARTBEAT_SECONDS))
-    fi
-  fi
+	sleep 1
+	if [ "$HEARTBEAT_SECONDS" -gt 0 ]; then
+		NOW="$(date +%s)"
+		ELAPSED=$((NOW - START_EPOCH))
+		if [ "$ELAPSED" -ge "$NEXT_HEARTBEAT" ]; then
+			emit_heartbeat
+			NEXT_HEARTBEAT=$((NEXT_HEARTBEAT + HEARTBEAT_SECONDS))
+		fi
+	fi
 done
 
 set +e
@@ -103,21 +103,21 @@ COMMAND_EXIT_CODE=$?
 set -e
 
 case "$COMMAND_EXIT_CODE" in
-  124|137)
-    if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
-      TIMED_OUT="yes"
-    fi
-    ;;
+124 | 137)
+	if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
+		TIMED_OUT="yes"
+	fi
+	;;
 esac
 
 ln -sfn "$LOG" "$OUT_DIR/latest.log" 2>/dev/null || cp "$LOG" "$OUT_DIR/latest.log"
 
 if [ "$TIMED_OUT" = "yes" ]; then
-  OUTCOME="timed_out"
+	OUTCOME="timed_out"
 elif [ "$COMMAND_EXIT_CODE" -eq 0 ]; then
-  OUTCOME="success"
+	OUTCOME="success"
 else
-  OUTCOME="command_failed"
+	OUTCOME="command_failed"
 fi
 
 printf '\n'
@@ -128,6 +128,6 @@ printf 'stdin_mode=%s\n' "$STDIN_MODE"
 printf 'log=%s\n' "$LOG"
 printf 'latest=%s\n' "$OUT_DIR/latest.log"
 printf 'RESULT: CGRUN_CORE_DONE outcome=%s command_exit_code=%s timed_out=%s stdin_mode=%s\n' \
-  "$OUTCOME" "$COMMAND_EXIT_CODE" "$TIMED_OUT" "$STDIN_MODE"
+	"$OUTCOME" "$COMMAND_EXIT_CODE" "$TIMED_OUT" "$STDIN_MODE"
 
 exit "$COMMAND_EXIT_CODE"

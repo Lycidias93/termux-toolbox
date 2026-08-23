@@ -16,106 +16,106 @@ route_class="unknown"
 secret_class="unknown"
 
 mkdir -p "$OUTPUT_ROOT" "$TMP_ROOT" 2>/dev/null || true
-: > "$PREFLIGHT_LOG" 2>/dev/null || true
+: >"$PREFLIGHT_LOG" 2>/dev/null || true
 
 # CG_HANDOFF_EARLY_AUTOCOPY_V1
 write_failure_autocopy() {
-  local reason="$1" copy_mode="full" clipboard_rc=127 clip_command
-  case "${secret_class:-unknown}" in
-    none|public|redacted) copy_mode="full" ;;
-    *) copy_mode="redacted" ;;
-  esac
+	local reason="$1" copy_mode="full" clipboard_rc=127 clip_command
+	case "${secret_class:-unknown}" in
+	none | public | redacted) copy_mode="full" ;;
+	*) copy_mode="redacted" ;;
+	esac
 
-  {
-    printf '%s\n' '== cg-handoff early failure AutoCopy =='
-    printf 'time=%s\n' "$(date -Is)"
-    printf 'handoff_version=%s\n' "$VERSION"
-    printf 'lane=%s\n' "${lane:-unbound}"
-    printf 'scope=%s\n' "${scope:-unknown}"
-    printf 'host=%s\n' "${host:-unknown}"
-    printf 'route_class=%s\n' "${route_class:-unknown}"
-    printf 'secret_class=%s\n' "${secret_class:-unknown}"
-    printf 'reason=%s\n' "$reason"
-    printf 'copy_mode=%s\n' "$copy_mode"
-    if [[ "$copy_mode" == "full" ]]; then
-      printf '%s\n' 'raw_handoff_suppressed=no'
-      if [[ -s "$PREFLIGHT_LOG" ]]; then
-        printf '%s\n' '== preflight transcript =='
-        cat "$PREFLIGHT_LOG"
-      fi
-    else
-      printf '%s\n' 'raw_handoff_suppressed=yes'
-    fi
-    printf 'FAIL: cg_handoff reason=%s\n' "$reason"
-    printf 'RESULT: CG_HANDOFF_STOP outcome=stop reason=%s workflow_exit_code=2\n' "$reason"
-  } > "$AUTOCOPY_LOG" 2>/dev/null || return 0
+	{
+		printf '%s\n' '== cg-handoff early failure AutoCopy =='
+		printf 'time=%s\n' "$(date -Is)"
+		printf 'handoff_version=%s\n' "$VERSION"
+		printf 'lane=%s\n' "${lane:-unbound}"
+		printf 'scope=%s\n' "${scope:-unknown}"
+		printf 'host=%s\n' "${host:-unknown}"
+		printf 'route_class=%s\n' "${route_class:-unknown}"
+		printf 'secret_class=%s\n' "${secret_class:-unknown}"
+		printf 'reason=%s\n' "$reason"
+		printf 'copy_mode=%s\n' "$copy_mode"
+		if [[ "$copy_mode" == "full" ]]; then
+			printf '%s\n' 'raw_handoff_suppressed=no'
+			if [[ -s "$PREFLIGHT_LOG" ]]; then
+				printf '%s\n' '== preflight transcript =='
+				cat "$PREFLIGHT_LOG"
+			fi
+		else
+			printf '%s\n' 'raw_handoff_suppressed=yes'
+		fi
+		printf 'FAIL: cg_handoff reason=%s\n' "$reason"
+		printf 'RESULT: CG_HANDOFF_STOP outcome=stop reason=%s workflow_exit_code=2\n' "$reason"
+	} >"$AUTOCOPY_LOG" 2>/dev/null || return 0
 
-  clip_command="${CG_HANDOFF_CLIPBOARD_COMMAND:-${CGRUN_CLIPBOARD_COMMAND:-}}"
-  if [[ -n "$clip_command" ]]; then
-    if bash "$clip_command" < "$AUTOCOPY_LOG"; then
-      clipboard_rc=0
-    else
-      clipboard_rc=$?
-    fi
-  elif command -v termux-clipboard-set >/dev/null 2>&1; then
-    if command -v timeout >/dev/null 2>&1; then
-      if timeout 10 termux-clipboard-set < "$AUTOCOPY_LOG"; then
-        clipboard_rc=0
-      else
-        clipboard_rc=$?
-      fi
-    elif termux-clipboard-set < "$AUTOCOPY_LOG"; then
-      clipboard_rc=0
-    else
-      clipboard_rc=$?
-    fi
-  fi
+	clip_command="${CG_HANDOFF_CLIPBOARD_COMMAND:-${CGRUN_CLIPBOARD_COMMAND:-}}"
+	if [[ -n "$clip_command" ]]; then
+		if bash "$clip_command" <"$AUTOCOPY_LOG"; then
+			clipboard_rc=0
+		else
+			clipboard_rc=$?
+		fi
+	elif command -v termux-clipboard-set >/dev/null 2>&1; then
+		if command -v timeout >/dev/null 2>&1; then
+			if timeout 10 termux-clipboard-set <"$AUTOCOPY_LOG"; then
+				clipboard_rc=0
+			else
+				clipboard_rc=$?
+			fi
+		elif termux-clipboard-set <"$AUTOCOPY_LOG"; then
+			clipboard_rc=0
+		else
+			clipboard_rc=$?
+		fi
+	fi
 
-  printf 'RESULT: CG_HANDOFF_EARLY_AUTOCOPY_DONE clipboard_exit_code=%s mode=%s source=%s reason=%s\n' \
-    "$clipboard_rc" "$copy_mode" "$AUTOCOPY_LOG" "$reason" >&2
-  return 0
+	printf 'RESULT: CG_HANDOFF_EARLY_AUTOCOPY_DONE clipboard_exit_code=%s mode=%s source=%s reason=%s\n' \
+		"$clipboard_rc" "$copy_mode" "$AUTOCOPY_LOG" "$reason" >&2
+	return 0
 }
 
 fail() {
-  local reason="$1"
-  printf 'FAIL: cg_handoff reason=%s\n' "$reason" >&2
-  printf 'RESULT: CG_HANDOFF_STOP outcome=stop reason=%s workflow_exit_code=2\n' "$reason" >&2
-  write_failure_autocopy "$reason" || true
-  if declare -F drain_pending_tty_input >/dev/null 2>&1; then
-    drain_pending_tty_input || true
-  fi
-  exit 2
+	local reason="$1"
+	printf 'FAIL: cg_handoff reason=%s\n' "$reason" >&2
+	printf 'RESULT: CG_HANDOFF_STOP outcome=stop reason=%s workflow_exit_code=2\n' "$reason" >&2
+	write_failure_autocopy "$reason" || true
+	if declare -F drain_pending_tty_input >/dev/null 2>&1; then
+		drain_pending_tty_input || true
+	fi
+	exit 2
 }
 
 usage() {
-  printf 'Usage: cg-handoff <pixel_local__artifact.sh|absolute-download-path> <sha256>\n' >&2
+	printf 'Usage: cg-handoff <pixel_local__artifact.sh|absolute-download-path> <sha256>\n' >&2
 }
 
 field() {
-  local key="$1" file="$2" count value
-  count="$(grep -Fc "# cg_handoff_${key}=" "$file" 2>/dev/null || true)"
-  [[ "$count" == "1" ]] || fail "metadata_${key}_not_unique"
-  value="$(sed -n "s/^# cg_handoff_${key}=//p" "$file")"
-  [[ -n "$value" ]] || fail "metadata_${key}_empty"
-  printf '%s\n' "$value"
+	local key="$1" file="$2" count value
+	count="$(grep -Fc "# cg_handoff_${key}=" "$file" 2>/dev/null || true)"
+	[[ "$count" == "1" ]] || fail "metadata_${key}_not_unique"
+	value="$(sed -n "s/^# cg_handoff_${key}=//p" "$file")"
+	[[ -n "$value" ]] || fail "metadata_${key}_empty"
+	printf '%s\n' "$value"
 }
 
 safe_token() {
-  local value="$1"
-  [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]]
+	local value="$1"
+	[[ "$value" =~ ^[A-Za-z0-9._-]+$ ]]
 }
 
 run_preflight() {
-  local output rc
-  set +e
-  output="$("$@" 2>&1)"
-  rc=$?
-  set -e
-  if [[ -n "$output" ]]; then
-    printf '%s\n' "$output"
-    printf '%s\n' "$output" >> "$PREFLIGHT_LOG" 2>/dev/null || true
-  fi
-  return "$rc"
+	local output rc
+	set +e
+	output="$("$@" 2>&1)"
+	rc=$?
+	set -e
+	if [[ -n "$output" ]]; then
+		printf '%s\n' "$output"
+		printf '%s\n' "$output" >>"$PREFLIGHT_LOG" 2>/dev/null || true
+	fi
+	return "$rc"
 }
 
 # CG_HANDOFF_TTY_TAIL_DRAIN_V2
@@ -128,47 +128,50 @@ run_preflight() {
 # still closed by cgrun. The settle window is intentionally short and bounded;
 # disable only for dedicated non-interactive tests with CG_HANDOFF_TTY_DRAIN=0.
 drain_pending_tty_input() {
-  local tty="${CG_HANDOFF_TTY_PATH:-/dev/tty}"
-  local ch drained=0 polls=0 quiet=0
-  local max_bytes="${CG_HANDOFF_TTY_MAX_BYTES:-4096}"
-  local max_polls="${CG_HANDOFF_TTY_MAX_POLLS:-30}"
-  local quiet_polls="${CG_HANDOFF_TTY_QUIET_POLLS:-12}"
-  local poll_timeout="${CG_HANDOFF_TTY_POLL_TIMEOUT:-0.05}"
+	local tty="${CG_HANDOFF_TTY_PATH:-/dev/tty}"
+	local drained=0 polls=0 quiet=0
+	local max_bytes="${CG_HANDOFF_TTY_MAX_BYTES:-4096}"
+	local max_polls="${CG_HANDOFF_TTY_MAX_POLLS:-30}"
+	local quiet_polls="${CG_HANDOFF_TTY_QUIET_POLLS:-12}"
+	local poll_timeout="${CG_HANDOFF_TTY_POLL_TIMEOUT:-0.05}"
 
-  [[ "${CG_HANDOFF_TTY_DRAIN:-1}" == "1" ]] || return 0
-  [[ -r "$tty" && -w "$tty" ]] || return 0
-  [[ "$max_bytes" =~ ^[0-9]+$ && "$max_polls" =~ ^[0-9]+$ && "$quiet_polls" =~ ^[0-9]+$ ]] || return 0
-  (( max_bytes > 0 && max_polls > 0 && quiet_polls > 0 )) || return 0
+	[[ "${CG_HANDOFF_TTY_DRAIN:-1}" == "1" ]] || return 0
+	[[ -r "$tty" && -w "$tty" ]] || return 0
+	[[ "$max_bytes" =~ ^[0-9]+$ && "$max_polls" =~ ^[0-9]+$ && "$quiet_polls" =~ ^[0-9]+$ ]] || return 0
+	((max_bytes > 0 && max_polls > 0 && quiet_polls > 0)) || return 0
 
-  exec 9<>"$tty" 2>/dev/null || return 0
-  while (( polls < max_polls && drained < max_bytes )); do
-    polls=$((polls + 1))
-    if IFS= read -r -s -n 1 -t "$poll_timeout" ch <&9; then
-      drained=$((drained + 1))
-      quiet=0
-      while (( drained < max_bytes )) && IFS= read -r -s -n 1 -t 0.001 ch <&9; do
-        drained=$((drained + 1))
-      done
-    else
-      quiet=$((quiet + 1))
-      (( quiet >= quiet_polls )) && break
-    fi
-  done
-  exec 9<&- 9>&- 2>/dev/null || true
+	exec 9<>"$tty" 2>/dev/null || return 0
+	while ((polls < max_polls && drained < max_bytes)); do
+		polls=$((polls + 1))
+		if IFS= read -r -s -n 1 -t "$poll_timeout" <&9; then
+			drained=$((drained + 1))
+			quiet=0
+			while ((drained < max_bytes)) && IFS= read -r -s -n 1 -t 0.001 <&9; do
+				drained=$((drained + 1))
+			done
+		else
+			quiet=$((quiet + 1))
+			((quiet >= quiet_polls)) && break
+		fi
+	done
+	exec 9<&- 9>&- 2>/dev/null || true
 
-  if (( drained > 0 )); then
-    printf 'CG_HANDOFF_TTY_DRAIN bytes=%s polls=%s result=PASS\n' "$drained" "$polls"
-  fi
+	if ((drained > 0)); then
+		printf 'CG_HANDOFF_TTY_DRAIN bytes=%s polls=%s result=PASS\n' "$drained" "$polls"
+	fi
 }
 
 source_arg="${1:-}"
 expected_sha="${2:-}"
-[[ -n "$source_arg" && -n "$expected_sha" && "$#" -eq 2 ]] || { usage; fail invalid_arguments; }
+[[ -n "$source_arg" && -n "$expected_sha" && "$#" -eq 2 ]] || {
+	usage
+	fail invalid_arguments
+}
 [[ "$expected_sha" =~ ^[0-9a-f]{64}$ ]] || fail expected_sha_invalid
 
 case "$source_arg" in
-  /*) source_path="$source_arg" ;;
-  *) source_path="$DOWNLOAD_ROOT/$source_arg" ;;
+/*) source_path="$source_arg" ;;
+*) source_path="$DOWNLOAD_ROOT/$source_arg" ;;
 esac
 
 [[ -f "$source_path" ]] || fail source_missing
@@ -177,15 +180,15 @@ source_real="$(readlink -f "$source_path" 2>/dev/null || true)"
 download_real="$(readlink -f "$DOWNLOAD_ROOT" 2>/dev/null || true)"
 [[ -n "$source_real" && -n "$download_real" ]] || fail source_realpath_failed
 case "$source_real" in
-  "$download_real"/*) ;;
-  *) fail source_outside_download_root ;;
+"$download_real"/*) ;;
+*) fail source_outside_download_root ;;
 esac
 
 basename="$(basename "$source_real")"
 case "$basename" in
-  pixel_local__*.sh) ;;
-  target-*|targets-*) fail remote_target_not_supported ;;
-  *) fail unsupported_artifact_basename ;;
+pixel_local__*.sh) ;;
+target-* | targets-*) fail remote_target_not_supported ;;
+*) fail unsupported_artifact_basename ;;
 esac
 
 actual_sha="$(sha256sum "$source_real" | awk '{print $1}')"
@@ -206,26 +209,26 @@ expected_marker="$(field expected_marker "$source_real")"
 safe_token "$lane" || fail lane_invalid
 safe_token "$host" || fail host_invalid
 case "$scope" in
-  repo|pixel|pixel-dispatcher|pi3|pi4|berylax|pi-host-drop|dns-ha-route|pi4-takeout|zeropi2|zeropi2-edge|omen) ;;
-  *) fail scope_invalid ;;
+repo | pixel | pixel-dispatcher | pi3 | pi4 | berylax | pi-host-drop | dns-ha-route | pi4-takeout | zeropi2 | zeropi2-edge | omen) ;;
+*) fail scope_invalid ;;
 esac
 case "$route_class" in
-  none|read-only|route|dns-ha|magicdns|subnet-route) ;;
-  *) fail route_class_invalid ;;
+none | read-only | route | dns-ha | magicdns | subnet-route) ;;
+*) fail route_class_invalid ;;
 esac
 case "$secret_class" in
-  none|public|redacted|possible|sensitive) ;;
-  *) fail secret_class_invalid ;;
+none | public | redacted | possible | sensitive) ;;
+*) fail secret_class_invalid ;;
 esac
 case "$run_mode" in
-  verify|run) ;;
-  *) fail run_mode_invalid ;;
+verify | run) ;;
+*) fail run_mode_invalid ;;
 esac
 [[ "${#expected_marker}" -le 500 ]] || fail expected_marker_too_long
 [[ "$expected_marker" != *$'\r'* && "$expected_marker" != *$'\n'* ]] || fail expected_marker_control_char
 
 for command in cgprep cclear cgcurrent cguse cg-run-file bash install mv rm sha256sum readlink basename grep sed awk mkdir; do
-  command -v "$command" >/dev/null 2>&1 || fail "command_missing_${command}"
+	command -v "$command" >/dev/null 2>&1 || fail "command_missing_${command}"
 done
 
 run_preflight cgprep || fail cgprep_failed
@@ -247,7 +250,7 @@ published_sha="$(sha256sum "$dst" | awk '{print $1}')"
 
 export CGFLOW_EXPECTED_MARKER="$expected_marker"
 printf 'CG_HANDOFF_V1 source=%s staged=%s sha256=%s lane=%s mode=%s scope=%s host=%s route_class=%s secret_class=%s\n' \
-  "$source_real" "$dst" "$expected_sha" "$lane" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
+	"$source_real" "$dst" "$expected_sha" "$lane" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
 
 rm -f -- "$PREFLIGHT_LOG" 2>/dev/null || true
 set +e
