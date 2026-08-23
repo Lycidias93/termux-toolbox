@@ -6,6 +6,13 @@ mode="${2:-verify}"
 mode="$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')"
 scope="${3:-}"
 
+unset CG_RUN_FILE_SOURCE_PATH CG_RUN_FILE_SOURCE_DIR
+source_script="$(readlink -f "$script" 2>/dev/null || true)"
+if [[ -n "$source_script" && -f "$source_script" ]]; then
+	export CG_RUN_FILE_SOURCE_PATH="$source_script"
+	export CG_RUN_FILE_SOURCE_DIR="${source_script%/*}"
+fi
+
 driver="$(command -v cg-run-file-driver-v1 2>/dev/null || true)"
 if [ -z "$driver" ] || [ ! -s "$driver" ]; then
 	printf '%s\n' 'FAIL: cg_run_file_driver_missing name=cg-run-file-driver-v1' >&2
