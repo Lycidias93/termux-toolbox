@@ -24,6 +24,8 @@ mkdir -p "$FAKE_BIN" "$CAPTURE"
   printf '%s\n' 'printf '\''%s\n'\'' "$(basename "$script")" > "$CG_RUN_FILE_CAPTURE/task_basename"'
   printf '%s\n' 'printf '\''%s\n'\'' "$mode" > "$CG_RUN_FILE_CAPTURE/mode"'
   printf '%s\n' 'printf '\''%s\n'\'' "$scope" > "$CG_RUN_FILE_CAPTURE/scope"'
+  printf '%s\n' 'printf '\''%s\n'\'' "${CG_RUN_FILE_SOURCE_PATH:-}" > "$CG_RUN_FILE_CAPTURE/source_path"'
+  printf '%s\n' 'printf '\''%s\n'\'' "${CG_RUN_FILE_SOURCE_DIR:-}" > "$CG_RUN_FILE_CAPTURE/source_dir"'
   printf '%s\n' 'bash "$script" > "$CG_RUN_FILE_CAPTURE/payload_output"'
 } > "$FAKE_BIN/cg-run-file-driver-v1"
 chmod 0755 "$FAKE_BIN/cg-run-file-driver-v1"
@@ -35,11 +37,16 @@ reset_capture() {
     "$CAPTURE/task_basename" \
     "$CAPTURE/mode" \
     "$CAPTURE/scope" \
+    "$CAPTURE/source_path" \
+    "$CAPTURE/source_dir" \
     "$CAPTURE/payload_output"
 }
 
 assert_common() {
   local name="$1" script="$2" expected_shebang="$3" requested_mode="$4"
+  local expected_source expected_dir
+  expected_source="$(readlink -f "$script")"
+  expected_dir="${expected_source%/*}"
   [ "$(cat "$CAPTURE/first_line")" = "$expected_shebang" ] || return 1
   [ "$(cat "$CAPTURE/task_basename")" = "$(basename "$script")" ] || {
     printf 'FAIL task_basename_changed case=%s got=%s expected=%s\n' \
@@ -52,6 +59,16 @@ assert_common() {
     return 1
   }
   [ "$(cat "$CAPTURE/scope")" = "pixel" ] || return 1
+  [ "$(cat "$CAPTURE/source_path")" = "$expected_source" ] || {
+    printf 'FAIL source_path_not_preserved case=%s got=%s expected=%s\n' \
+      "$name" "$(cat "$CAPTURE/source_path")" "$expected_source"
+    return 1
+  }
+  [ "$(cat "$CAPTURE/source_dir")" = "$expected_dir" ] || {
+    printf 'FAIL source_dir_not_preserved case=%s got=%s expected=%s\n' \
+      "$name" "$(cat "$CAPTURE/source_dir")" "$expected_dir"
+    return 1
+  }
   grep -Fxq "RESULT: ${name}_DONE" "$CAPTURE/payload_output" || {
     printf 'FAIL payload_not_executed case=%s\n' "$name"
     return 1
@@ -70,7 +87,7 @@ run_shell_case() {
     bash "$WRAPPER" "$script" "$requested_mode" pixel
 
   assert_common "$name" "$script" "$expected_shebang" "$requested_mode"
-  printf 'PASS normalized_shell_shebang_task_mode_and_execution case=%s source=%s target=%s task=%s\n' \
+  printf 'PASS normalized_shell_shebang_task_mode_execution_and_source_context case=%s source=%s target=%s task=%s\n' \
     "$name" "$source_shebang" "$expected_shebang" "$(basename "$script")"
 }
 
@@ -86,7 +103,7 @@ run_python_case() {
     bash "$WRAPPER" "$script" VERIFY pixel
 
   assert_common "$name" "$script" '#!/usr/bin/env bash' VERIFY
-  printf 'PASS normalized_python_artifact_task_mode_and_execution case=%s source=%s wrapper=%s task=%s\n' \
+  printf 'PASS normalized_python_artifact_task_mode_execution_and_source_context case=%s source=%s wrapper=%s task=%s\n' \
     "$name" "$source_shebang" '#!/usr/bin/env bash' "$(basename "$script")"
 }
 
@@ -119,4 +136,5 @@ fi
 printf '%s\n' 'PASS cg_run_file_mode_canonicalization'
 printf '%s\n' 'PASS cg_run_file_invalid_mode_rejected'
 printf '%s\n' 'PASS cg_run_file_python_syntax_guard'
+printf '%s\n' 'PASS cg_run_file_source_context_preserved'
 printf '%s\n' 'RESULT: CG_RUN_FILE_TERMUX_SHEBANG_VERIFY_DONE outcome=success workflow_exit_code=0'
