@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # AUTOCLIP_V95_CGRUN_CORE
 # AUTOCLIP_V95_STDIN_CLOSED
+# AUTOCLIP_V95_OUTERMOST_CLIPBOARD_OWNER
 set -uo pipefail
 
 HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
@@ -11,6 +12,7 @@ HEARTBEAT_TAIL_LINES="${CGRUN_HEARTBEAT_TAIL_LINES:-12}"
 TASK_LABEL="${CG_RUN_TASK:-${CGRUN_TASK_LABEL:-direct-cgrun}}"
 RUN_ID="${CG_RUN_ID:-none}"
 STDIN_MODE="dev-null"
+NESTED_CLIPBOARD_SINK="${CGRUN_NESTED_CLIPBOARD_SINK:-/dev/null}"
 
 is_uint() {
 	case "${1:-}" in
@@ -29,6 +31,7 @@ fail() {
 is_uint "$TIMEOUT_SECONDS" || fail "timeout_invalid value=$TIMEOUT_SECONDS"
 is_uint "$HEARTBEAT_SECONDS" || fail "heartbeat_invalid value=$HEARTBEAT_SECONDS"
 is_uint "$HEARTBEAT_TAIL_LINES" || fail "heartbeat_tail_invalid value=$HEARTBEAT_TAIL_LINES"
+[ -r "$NESTED_CLIPBOARD_SINK" ] || fail "nested_clipboard_sink_unreadable path=$NESTED_CLIPBOARD_SINK"
 
 mkdir -p "$OUT_DIR"
 STAMP="$(date +%Y%m%d_%H%M%S)"
@@ -47,20 +50,30 @@ COMMAND_TEXT="$*"
 	printf 'stdin_mode=%s\n' "$STDIN_MODE"
 	printf 'task=%s\n' "$TASK_LABEL"
 	printf 'run_id=%s\n' "$RUN_ID"
+	printf '%s\n' 'nested_autocopy_owner=outermost'
 	printf '\n'
 } >"$LOG"
 
 # cgrun is a workflow runner, never an interactive TTY frontend. Closing stdin
 # makes accidental read/select/prompt calls fail immediately with EOF instead
 # of waiting indefinitely for user input.
+#
+# The outer cgrun wrapper owns the user clipboard handoff. Payload descendants
+# inherit a sink for cgrun/cg-handoff AutoCopy so nested fixtures and verifiers
+# cannot overwrite the clipboard before the outer workflow reaches its final
+# receipt. Their stdout/stderr still remains part of the outer bound log/tail.
 if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
 	if ! command -v timeout >/dev/null 2>&1; then
 		fail "timeout_command_missing"
 	fi
-	timeout --foreground --signal=TERM --kill-after=5 "${TIMEOUT_SECONDS}s" \
+	CGRUN_CLIPBOARD_COMMAND="$NESTED_CLIPBOARD_SINK" \
+		CG_HANDOFF_CLIPBOARD_COMMAND="$NESTED_CLIPBOARD_SINK" \
+		timeout --foreground --signal=TERM --kill-after=5 "${TIMEOUT_SECONDS}s" \
 		bash -lc "$COMMAND_TEXT" </dev/null >>"$LOG" 2>&1 &
 else
-	bash -lc "$COMMAND_TEXT" </dev/null >>"$LOG" 2>&1 &
+	CGRUN_CLIPBOARD_COMMAND="$NESTED_CLIPBOARD_SINK" \
+		CG_HANDOFF_CLIPBOARD_COMMAND="$NESTED_CLIPBOARD_SINK" \
+		bash -lc "$COMMAND_TEXT" </dev/null >>"$LOG" 2>&1 &
 fi
 PAYLOAD_PID=$!
 
