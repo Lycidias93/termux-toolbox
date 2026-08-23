@@ -45,7 +45,6 @@ if [ "$inside_git" = "yes" ]; then
   git diff --check
 fi
 
-# Exclude known policy/tooling files that intentionally contain forbidden-pattern definitions.
 if grep -RInE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9_]+|github_pat_|AKIA[0-9A-Z]{16}|client_secret|refresh_token|access_token|password=|token=)' . \
   --exclude-dir=.git \
   --exclude='verify-termux-toolbox.sh' \
@@ -57,7 +56,6 @@ if grep -RInE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9_]+|github_
   exit 1
 fi
 
-# TERMUX_TOOLBOX_VERIFY_ARTIFACT_LANE_BINDING_V2_20260710
 for required in \
   'ASSISTANT_OUTPUT_GUARD_ARTIFACT_LANE_BINDING_V2_20260710' \
   'artifact_cgrun_requires_cg_run_file' \
@@ -129,6 +127,18 @@ if [[ -f maintenance/verify-cg-handoff-v1.sh ]]; then
   fi
 else
   echo "FAIL cg_handoff_verify_missing"
+  fail=1
+fi
+
+if [[ -f maintenance/verify-cg-handoff-bundle-v1.sh ]]; then
+  if bash maintenance/verify-cg-handoff-bundle-v1.sh; then
+    echo "PASS cg_handoff_bundle_v1_contract"
+  else
+    echo "FAIL cg_handoff_bundle_v1_contract"
+    fail=1
+  fi
+else
+  echo "FAIL cg_handoff_bundle_verify_missing"
   fail=1
 fi
 
