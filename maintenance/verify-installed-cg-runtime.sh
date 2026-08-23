@@ -68,9 +68,10 @@ grep -Fq 'CG_MULTILANE_STALE_LOCK_RECOVERED' "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'stale_lock_recovery_marker_missing'
 grep -Fq 'CG_MULTILANE_LOCK_BUSY' "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'lock_busy_autocopy_marker_missing'
-grep -Fq 'none|read-only|route|dns-ha|magicdns|subnet-route' "$BIN_DIR/cg-lane.sh" \
+canonical_route_case_re='none[[:space:]]*[|][[:space:]]*read-only[[:space:]]*[|][[:space:]]*route[[:space:]]*[|][[:space:]]*dns-ha[[:space:]]*[|][[:space:]]*magicdns[[:space:]]*[|][[:space:]]*subnet-route'
+grep -Eq "$canonical_route_case_re" "$BIN_DIR/cg-lane.sh" \
   || fail 'canonical_route_classes_missing_from_lane_guard'
-grep -Fq 'none|read-only|route|dns-ha|magicdns|subnet-route' "$BIN_DIR/cg-run-file-driver-v1" \
+grep -Eq "$canonical_route_case_re" "$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'canonical_route_classes_missing_from_run_driver'
 grep -Fq 'CG_HANDOFF_V1_START' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_metadata_contract_missing'
