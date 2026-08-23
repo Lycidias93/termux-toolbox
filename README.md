@@ -90,6 +90,14 @@ This repo is public-safe by design. It should not contain:
 
 Private/local material belongs in a private repo or local backup, not here.
 
+## Use as a GitHub template
+
+This repository is enabled as a GitHub **template repository**. Use **Use this template** on GitHub when you want an independent repository that starts with this toolbox structure and files but has its own repository history and can be customized freely.
+
+Choose the template path when you want to build your own toolbox variant. Choose a normal clone when you want to use this repository directly and keep pulling its future updates. Creating a repository from the template does not create an upstream update relationship to this repository.
+
+After creating a repository from the template, review its public/private visibility, remove anything you do not need, keep credentials and host-specific data out of Git, and then use the same install and verification flow below.
+
 ## Install
 
 Clone the repo and run the installer:
