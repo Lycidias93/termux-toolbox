@@ -3,11 +3,18 @@ set -uo pipefail
 
 usage() {
 	printf '%s\n' \
-		'usage: cglint FILE [FILE ...]' \
+		'usage: cglint [--strict] FILE [FILE ...]' \
 		'' \
 		'Read-only shell artifact lint gate.' \
-		'Runs the parser, ShellCheck and shfmt diff checks without modifying files.'
+		'Runs the parser, ShellCheck and shfmt diff checks without modifying files.' \
+		'Default mode blocks ShellCheck errors/warnings; --strict also blocks info/style findings.'
 }
+
+strict=no
+if [[ "${1:-}" == "--strict" ]]; then
+	strict=yes
+	shift
+fi
 
 if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 	usage
@@ -25,6 +32,13 @@ done
 if [[ "$missing" -ne 0 ]]; then
 	printf 'RESULT: CGLINT_BLOCKED outcome=dependency_missing workflow_exit_code=2\n' >&2
 	exit 2
+fi
+
+severity=warning
+mode=default
+if [[ "$strict" == "yes" ]]; then
+	severity=style
+	mode=strict
 fi
 
 fail=0
@@ -62,8 +76,8 @@ for file in "$@"; do
 
 	shellcheck_shell="$shell"
 	[[ "$shellcheck_shell" == "dash" ]] && shellcheck_shell="sh"
-	if ! shellcheck -s "$shellcheck_shell" -- "$file"; then
-		printf 'FAIL: shellcheck path=%s shell=%s\n' "$file" "$shellcheck_shell" >&2
+	if ! shellcheck -S "$severity" -s "$shellcheck_shell" -- "$file"; then
+		printf 'FAIL: shellcheck path=%s shell=%s severity=%s\n' "$file" "$shellcheck_shell" "$severity" >&2
 		fail=1
 		continue
 	fi
@@ -75,11 +89,11 @@ for file in "$@"; do
 	fi
 
 	checked=$((checked + 1))
-	printf 'PASS: cglint path=%s shell=%s\n' "$file" "$shell"
+	printf 'PASS: cglint path=%s shell=%s severity=%s\n' "$file" "$shell" "$severity"
 done
 
 if [[ "$fail" -ne 0 ]]; then
-	printf 'RESULT: CGLINT_FAIL checked=%s workflow_exit_code=1\n' "$checked" >&2
+	printf 'RESULT: CGLINT_FAIL checked=%s workflow_exit_code=1 mode=%s\n' "$checked" "$mode" >&2
 	exit 1
 fi
-printf 'RESULT: CGLINT_DONE checked=%s workflow_exit_code=0\n' "$checked"
+printf 'RESULT: CGLINT_DONE checked=%s workflow_exit_code=0 mode=%s\n' "$checked" "$mode"
