@@ -41,20 +41,21 @@ The outer SHA-256 remains supplied by the assistant response and is verified bef
 3. validate one metadata block and all lane/scope/host/route/secret/mode fields;
 4. run `cgprep`, `cclear`, `cgcurrent`, then the metadata-bound `cguse`;
 5. atomically stage the exact file to `$TMPDIR`, verify SHA-256 again and run `bash -n`;
-6. export the artifact's expected marker;
-7. `exec cg-run-file` exactly once and let the existing AutoCopy/receipt pipeline own completion.
+6. run the staged/private entrypoint through `cglint` in default mode; parser errors, ShellCheck error/warning findings, and `shfmt` drift fail closed before execution;
+7. emit `CG_HANDOFF_CGLINT_GATE_V1 state=pass mode=default`, then export the artifact's expected marker;
+8. `exec cg-run-file` exactly once and let the existing AutoCopy/receipt pipeline own completion.
 
 It never accepts `target-*` or `targets-*` artifacts, never executes a Shared Storage file directly, and never appends a manual `cgtail`.
 
 ## Failure behavior
 
-Any source, hash, metadata, lane, syntax or stage mismatch fails closed with:
+Any source, hash, metadata, lane, syntax, stage or default-`cglint` mismatch fails closed with:
 
 ```text
 RESULT: CG_HANDOFF_STOP outcome=stop reason=<reason> workflow_exit_code=2
 ```
 
-The fixture `maintenance/verify-cg-handoff-v1.sh` verifies the success path, complete lane binding, expected-marker propagation and hash-mismatch STOP behavior.
+The fixture `maintenance/verify-cg-handoff-v1.sh` verifies the success path, complete lane binding, expected-marker propagation, a positive `cglint` gate, a negative `cglint` gate that proves `cg-run-file` is not reached, and hash-mismatch STOP behavior.
 
 ## Installed-runtime gate
 

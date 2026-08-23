@@ -334,7 +334,7 @@ fi
 [[ "${#expected_marker}" -le 500 ]] || fail expected_marker_too_long
 [[ "$expected_marker" != *$'\r'* && "$expected_marker" != *$'\n'* ]] || fail expected_marker_control_char
 
-for command in cgprep cclear cgcurrent cguse cg-run-file bash install mv rm sha256sum readlink basename grep sed awk mkdir; do
+for command in cgprep cclear cgcurrent cguse cg-run-file cglint bash install mv rm sha256sum readlink basename grep sed awk mkdir; do
 	command -v "$command" >/dev/null 2>&1 || fail "command_missing_${command}"
 done
 
@@ -358,6 +358,10 @@ if [[ "$artifact_kind" == script ]]; then
 else
 	dst="$artifact_source"
 fi
+
+# CG_HANDOFF_CGLINT_GATE_V1
+run_preflight cglint "$dst" || fail cglint_gate_failed
+printf "CG_HANDOFF_CGLINT_GATE_V1 state=pass mode=default artifact=%s\n" "$dst"
 
 export CGFLOW_EXPECTED_MARKER="$expected_marker"
 printf 'CG_HANDOFF_V1 source=%s staged=%s sha256=%s kind=%s lane=%s mode=%s scope=%s host=%s route_class=%s secret_class=%s\n' \
