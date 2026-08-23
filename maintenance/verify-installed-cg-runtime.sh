@@ -83,6 +83,8 @@ grep -Fq 'drain_pending_tty_input' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_tty_tail_drain_call_missing'
 grep -Fq 'CG_HANDOFF_EARLY_AUTOCOPY_V1' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_early_autocopy_marker_missing'
+grep -Fq 'CG_HANDOFF_BUNDLE_V1' "$BIN_DIR/cg-handoff" \
+  || fail 'cg_handoff_bundle_v1_marker_missing'
 grep -Fq 'cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"' "$BIN_DIR/cg-handoff" \
   || fail 'cg_handoff_run_file_entrypoint_missing'
 printf 'PASS: execution_receipt_contract\n'
@@ -168,6 +170,13 @@ CG_RUN_FILE_DRIVER_PATH="$BIN_DIR/cg-run-file-driver-v1" \
   || fail 'cg_handoff_delayed_tty_runtime_failed'
 printf 'PASS: cg_handoff_delayed_tty_runtime\n'
 
+[[ -s "$TOOLBOX/maintenance/verify-cg-handoff-bundle-v1.sh" ]] \
+  || fail 'cg_handoff_bundle_v1_verifier_missing'
+CG_HANDOFF_PATH="$BIN_DIR/cg-handoff" \
+  bash "$TOOLBOX/maintenance/verify-cg-handoff-bundle-v1.sh" \
+  || fail 'cg_handoff_bundle_v1_runtime_failed'
+printf 'PASS: cg_handoff_bundle_v1_runtime\n'
+
 for name in cglint cgdoctor cgfind cgfail cgnotify; do
   bash "$BIN_DIR/$name" --help >/dev/null 2>&1 \
     || fail "toolkit_helper_help_failed name=$name"
@@ -181,6 +190,7 @@ printf 'PASS: toolkit_vnext_installed_smoke\n'
 printf 'runtime_version=v9.5-native-core-receipt\n'
 printf 'run_file_driver_version=v1\n'
 printf 'handoff_version=v1.1\n'
+printf 'handoff_bundle=v1\n'
 printf 'handoff_tty_tail_drain=v2\n'
 printf 'toolkit_vnext=v1\n'
 printf 'stdin_mode=dev-null\n'
