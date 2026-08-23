@@ -10,25 +10,25 @@ WORK="$(mktemp -d "$TMP_ROOT/cg-handoff-fixture.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM HUP
 
 fail() {
-  printf 'RESULT: CG_HANDOFF_FIXTURE_STOP outcome=stop reason=%s workflow_exit_code=1\n' "$1"
-  exit 1
+	printf 'RESULT: CG_HANDOFF_FIXTURE_STOP outcome=stop reason=%s workflow_exit_code=1\n' "$1"
+	exit 1
 }
 
 mkdir -p "$WORK/Download" "$WORK/bin" "$WORK/tmp"
 artifact="$WORK/Download/pixel_local__fixture.sh"
 {
-  printf '%s\n' '#!/usr/bin/env bash'
-  printf '%s\n' '# CG_HANDOFF_V1_START'
-  printf '%s\n' '# cg_handoff_lane=chat-fixture'
-  printf '%s\n' '# cg_handoff_scope=pixel'
-  printf '%s\n' '# cg_handoff_host=pixel'
-  printf '%s\n' '# cg_handoff_route_class=route'
-  printf '%s\n' '# cg_handoff_secret_class=redacted'
-  printf '%s\n' '# cg_handoff_run_mode=verify'
-  printf '%s\n' '# cg_handoff_expected_marker=RESULT: FIXTURE_PASS'
-  printf '%s\n' '# CG_HANDOFF_V1_END'
-  printf '%s\n' "printf 'RESULT: FIXTURE_PASS\\n'"
-} > "$artifact"
+	printf '%s\n' '#!/usr/bin/env bash'
+	printf '%s\n' '# CG_HANDOFF_V1_START'
+	printf '%s\n' '# cg_handoff_lane=chat-fixture'
+	printf '%s\n' '# cg_handoff_scope=pixel'
+	printf '%s\n' '# cg_handoff_host=pixel'
+	printf '%s\n' '# cg_handoff_route_class=route'
+	printf '%s\n' '# cg_handoff_secret_class=redacted'
+	printf '%s\n' '# cg_handoff_run_mode=verify'
+	printf '%s\n' '# cg_handoff_expected_marker=RESULT: FIXTURE_PASS'
+	printf '%s\n' '# CG_HANDOFF_V1_END'
+	printf '%s\n' "printf 'RESULT: FIXTURE_PASS\\n'"
+} >"$artifact"
 chmod 0700 "$artifact"
 
 grep -Fq 'CG_HANDOFF_TTY_TAIL_DRAIN_V2' "$HANDOFF" || fail tty_tail_drain_v2_marker_missing
@@ -38,54 +38,73 @@ grep -Fq 'exec 9<>"$tty"' "$HANDOFF" || fail tty_tail_controlling_tty_fd_missing
 grep -Fq 'CG_HANDOFF_EARLY_AUTOCOPY_V1' "$HANDOFF" || fail early_autocopy_marker_missing
 
 for route_class in none read-only route dns-ha magicdns subnet-route; do
-  state="$WORK/lane-$route_class"
-  output_dir="$WORK/output-$route_class"
-  lane_name="route-fixture-${route_class//[^a-z0-9._-]/-}"
-  route_output="$(CG_LANE_STATE_DIR="$state" CG_OUTPUT_DIR="$output_dir" bash "$LANE" use "$lane_name" pi4 pi4 "$route_class" redacted 2>&1)" || fail "route_class_rejected_${route_class}"
-  printf '%s\n' "$route_output" | grep -Fq 'RESULT: CG_MULTILANE_USE_OK' || fail "route_class_use_marker_missing_${route_class}"
-  grep -Fxq "CG_LANE_ROUTE_CLASS=$route_class" "$state/lanes/$lane_name/meta.env" || fail "route_class_meta_mismatch_${route_class}"
+	state="$WORK/lane-$route_class"
+	output_dir="$WORK/output-$route_class"
+	lane_name="route-fixture-${route_class//[^a-z0-9._-]/-}"
+	route_output="$(CG_LANE_STATE_DIR="$state" CG_OUTPUT_DIR="$output_dir" bash "$LANE" use "$lane_name" pi4 pi4 "$route_class" redacted 2>&1)" || fail "route_class_rejected_${route_class}"
+	printf '%s\n' "$route_output" | grep -Fq 'RESULT: CG_MULTILANE_USE_OK' || fail "route_class_use_marker_missing_${route_class}"
+	grep -Fxq "CG_LANE_ROUTE_CLASS=$route_class" "$state/lanes/$lane_name/meta.env" || fail "route_class_meta_mismatch_${route_class}"
 done
 printf '%s\n' 'PASS canonical_route_classes'
 
 for route_class in none read-only route dns-ha magicdns subnet-route; do
-  driver_state="$WORK/driver-state-$route_class"
-  driver_output="$WORK/driver-output-$route_class"
-  mkdir -p "$driver_state/locks" "$driver_output"
-  driver_lane="driver-${route_class//[^a-z0-9._-]/-}"
-  driver_run="fixture-${route_class//[^a-z0-9._-]/-}"
-  driver_lock="lane-$driver_lane"
-  driver_result="$(CG_LANE_STATE_DIR="$driver_state" CG_OUTPUT_DIR="$driver_output" bash "$DRIVER" --payload "$artifact" verify "$driver_lane" pixel pi4 "$route_class" redacted "$driver_run" "$driver_lock" 2>&1)" || fail "driver_route_class_rejected_${route_class}"
-  printf '%s\n' "$driver_result" | grep -Fq 'CG_MULTILANE_PAYLOAD_DONE payload_exit_code=0' || fail "driver_route_class_payload_missing_${route_class}"
+	driver_state="$WORK/driver-state-$route_class"
+	driver_output="$WORK/driver-output-$route_class"
+	mkdir -p "$driver_state/locks" "$driver_output"
+	driver_lane="driver-${route_class//[^a-z0-9._-]/-}"
+	driver_run="fixture-${route_class//[^a-z0-9._-]/-}"
+	driver_lock="lane-$driver_lane"
+	driver_result="$(CG_LANE_STATE_DIR="$driver_state" CG_OUTPUT_DIR="$driver_output" bash "$DRIVER" --payload "$artifact" verify "$driver_lane" pixel pi4 "$route_class" redacted "$driver_run" "$driver_lock" 2>&1)" || fail "driver_route_class_rejected_${route_class}"
+	printf '%s\n' "$driver_result" | grep -Fq 'CG_MULTILANE_PAYLOAD_DONE payload_exit_code=0' || fail "driver_route_class_payload_missing_${route_class}"
 done
 printf '%s\n' 'PASS canonical_driver_route_classes'
 
 for name in cgprep cclear cgcurrent; do
-  {
-    printf '%s\n' '#!/usr/bin/env bash'
-    printf '%s\n' 'exit 0'
-  } > "$WORK/bin/$name"
-  chmod 0700 "$WORK/bin/$name"
+	{
+		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' 'exit 0'
+	} >"$WORK/bin/$name"
+	chmod 0700 "$WORK/bin/$name"
 done
 
 write_success_cguse() {
-  {
-    printf '%s\n' '#!/usr/bin/env bash'
-    printf '%s\n' 'printf "CGUSE:%s\n" "$*"'
-  } > "$WORK/bin/cguse"
-  chmod 0700 "$WORK/bin/cguse"
+	{
+		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' 'printf "CGUSE:%s\n" "$*"'
+	} >"$WORK/bin/cguse"
+	chmod 0700 "$WORK/bin/cguse"
 }
 
 write_success_run_file() {
-  {
-    printf '%s\n' '#!/usr/bin/env bash'
-    printf '%s\n' 'printf "RUNFILE:%s\n" "$*"'
-    printf '%s\n' 'printf "MARKER:%s\n" "${CGFLOW_EXPECTED_MARKER:-}"'
-  } > "$WORK/bin/cg-run-file"
-  chmod 0700 "$WORK/bin/cg-run-file"
+	{
+		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' 'printf "RUNFILE:%s\n" "$*"'
+		printf '%s\n' 'printf "MARKER:%s\n" "${CGFLOW_EXPECTED_MARKER:-}"'
+	} >"$WORK/bin/cg-run-file"
+	chmod 0700 "$WORK/bin/cg-run-file"
+}
+
+write_success_cglint() {
+	{
+		printf "%s\n" "#!/usr/bin/env bash"
+		printf "%s\n" "printf \"RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default\\n\""
+		printf "%s\n" "exit 0"
+	} >"$WORK/bin/cglint"
+	chmod 0700 "$WORK/bin/cglint"
+}
+
+write_fail_cglint() {
+	{
+		printf "%s\n" "#!/usr/bin/env bash"
+		printf "%s\n" "printf \"RESULT: CGLINT_FAIL checked=1 workflow_exit_code=1 mode=default\\n\" >&2"
+		printf "%s\n" "exit 1"
+	} >"$WORK/bin/cglint"
+	chmod 0700 "$WORK/bin/cglint"
 }
 
 write_success_cguse
 write_success_run_file
+write_success_cglint
 sha="$(sha256sum "$artifact" | awk '{print $1}')"
 output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-success" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$sha")"
 printf '%s\n' "$output"
@@ -95,11 +114,26 @@ printf '%s\n' "$output" | grep -Fq 'RUNFILE:' || fail run_file_missing
 printf '%s\n' "$output" | grep -Fq ' verify pixel pixel route redacted' || fail run_file_args_failed
 printf '%s\n' "$output" | grep -Fq 'MARKER:RESULT: FIXTURE_PASS' || fail expected_marker_failed
 
+printf "%s\n" "$output" | grep -Fq "CG_HANDOFF_CGLINT_GATE_V1 state=pass mode=default" || fail cglint_gate_pass_marker_missing
+
+write_fail_cglint
+set +e
+lint_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-lint-fail" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" "$(basename "$artifact")" "$sha" 2>&1)"
+lint_rc=$?
+set -e
+[[ "$lint_rc" -eq 2 ]] || fail cglint_gate_failure_rc_invalid
+printf "%s\n" "$lint_output" | grep -Fq "reason=cglint_gate_failed" || fail cglint_gate_failure_reason_missing
+if printf "%s\n" "$lint_output" | grep -Fq "RUNFILE:"; then
+	fail cglint_gate_failure_executed_run_file
+fi
+printf "%s\n" "PASS cglint_handoff_gate"
+write_success_cglint
+
 late_tty="$WORK/late-tty.fifo"
 mkfifo "$late_tty"
 {
-  sleep 0.25
-  printf '%s' '```' > "$late_tty"
+	sleep 0.25
+	printf '%s' '```' >"$late_tty"
 } &
 writer_pid=$!
 set +e
@@ -112,9 +146,9 @@ printf '%s\n' "$late_output" | grep -Eq 'CG_HANDOFF_TTY_DRAIN bytes=[3-9][0-9]* 
 printf '%s\n' 'PASS delayed_tty_tail_drain'
 
 {
-  printf '%s\n' '#!/usr/bin/env bash'
-  printf '%s\n' 'exit 7'
-} > "$WORK/bin/cg-run-file"
+	printf '%s\n' '#!/usr/bin/env bash'
+	printf '%s\n' 'exit 7'
+} >"$WORK/bin/cg-run-file"
 chmod 0700 "$WORK/bin/cg-run-file"
 set +e
 PATH="$WORK/bin:$PATH" CG_HANDOFF_TTY_DRAIN=0 CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-run-fail" TMPDIR="$WORK/tmp" bash "$HANDOFF" "$(basename "$artifact")" "$sha" >/dev/null 2>&1
@@ -132,15 +166,15 @@ printf '%s\n' "$bad_output" | grep -Fq 'reason=source_sha_mismatch' || fail bad_
 
 clipboard_capture="$WORK/clipboard-capture.log"
 {
-  printf '%s\n' '#!/usr/bin/env bash'
-  printf 'cat > %q\n' "$clipboard_capture"
-} > "$WORK/bin/clipboard-sink"
+	printf '%s\n' '#!/usr/bin/env bash'
+	printf 'cat > %q\n' "$clipboard_capture"
+} >"$WORK/bin/clipboard-sink"
 chmod 0700 "$WORK/bin/clipboard-sink"
 {
-  printf '%s\n' '#!/usr/bin/env bash'
-  printf '%s\n' 'printf "FAIL: fixture_cguse_failure\n" >&2'
-  printf '%s\n' 'exit 23'
-} > "$WORK/bin/cguse"
+	printf '%s\n' '#!/usr/bin/env bash'
+	printf '%s\n' 'printf "FAIL: fixture_cguse_failure\n" >&2'
+	printf '%s\n' 'exit 23'
+} >"$WORK/bin/cguse"
 chmod 0700 "$WORK/bin/cguse"
 set +e
 early_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-early" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 CG_HANDOFF_CLIPBOARD_COMMAND="$WORK/bin/clipboard-sink" bash "$HANDOFF" "$(basename "$artifact")" "$sha" 2>&1)"
