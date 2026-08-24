@@ -52,6 +52,22 @@ grep -Fq 'RESULT: CGLINT_FAIL' "$WORK/cglint-info-strict.out" || fail "cglint_st
 grep -Fq 'mode=strict' "$WORK/cglint-info-strict.out" || fail "cglint_strict_mode_marker_missing"
 printf 'PASS: cglint_strict_info_fixture\n'
 
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'if true; then printf '\''%s\n'\'' "ok"; fi' >"$WORK/cglint-format.sh"
+if ! bash "$ROOT/bin/cglint" "$WORK/cglint-format.sh" >"$WORK/cglint-format-default.out" 2>&1; then
+	cat "$WORK/cglint-format-default.out" >&2
+	fail "cglint_default_shfmt_drift_should_pass"
+fi
+grep -Fq 'WARN: shfmt_diff_nonblocking' "$WORK/cglint-format-default.out" || fail "cglint_default_shfmt_warning_missing"
+grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default' "$WORK/cglint-format-default.out" || fail "cglint_default_shfmt_result_missing"
+printf 'PASS: cglint_default_shfmt_nonblocking_fixture\n'
+
+if bash "$ROOT/bin/cglint" --strict "$WORK/cglint-format.sh" >"$WORK/cglint-format-strict.out" 2>&1; then
+	fail "cglint_strict_shfmt_drift_unexpected_success"
+fi
+grep -Fq 'FAIL: shfmt_diff' "$WORK/cglint-format-strict.out" || fail "cglint_strict_shfmt_failure_missing"
+grep -Fq 'mode=strict' "$WORK/cglint-format-strict.out" || fail "cglint_strict_shfmt_mode_missing"
+printf 'PASS: cglint_strict_shfmt_fixture\n'
+
 printf '%s\n' 'alpha marker' 'beta marker' >"$WORK/search.txt"
 bash "$ROOT/bin/cgfind" 'beta marker' "$WORK" >"$WORK/cgfind.out"
 grep -Fq 'RESULT: CGFIND_DONE' "$WORK/cgfind.out" || fail "cgfind_result_missing"
