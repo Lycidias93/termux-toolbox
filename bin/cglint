@@ -7,7 +7,8 @@ usage() {
 		'' \
 		'Read-only shell artifact lint gate.' \
 		'Runs the parser, ShellCheck and shfmt diff checks without modifying files.' \
-		'Default mode blocks ShellCheck errors/warnings; --strict also blocks info/style findings.'
+		'Default mode blocks parser failures, ShellCheck errors/warnings and shfmt execution errors; formatting drift is warning-only.' \
+		'--strict additionally blocks ShellCheck info/style findings and shfmt formatting drift.'
 }
 
 strict=no
@@ -82,10 +83,23 @@ for file in "$@"; do
 		continue
 	fi
 
-	if ! shfmt -d -- "$file"; then
-		printf 'FAIL: shfmt_diff path=%s\n' "$file" >&2
-		fail=1
-		continue
+	shfmt_rc=0
+	shfmt_output="$(shfmt -d -- "$file" 2>&1)" || shfmt_rc=$?
+	if [[ "$shfmt_rc" -ne 0 ]]; then
+		if [[ "$shfmt_rc" -eq 1 ]]; then
+			if [[ "$strict" == "yes" ]]; then
+				[[ -n "$shfmt_output" ]] && printf '%s\n' "$shfmt_output"
+				printf 'FAIL: shfmt_diff path=%s mode=strict\n' "$file" >&2
+				fail=1
+				continue
+			fi
+			printf 'WARN: shfmt_diff_nonblocking path=%s mode=default\n' "$file" >&2
+		else
+			[[ -n "$shfmt_output" ]] && printf '%s\n' "$shfmt_output" >&2
+			printf 'FAIL: shfmt_error path=%s exit_code=%s\n' "$file" "$shfmt_rc" >&2
+			fail=1
+			continue
+		fi
 	fi
 
 	checked=$((checked + 1))
