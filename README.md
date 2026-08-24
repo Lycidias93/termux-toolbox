@@ -9,7 +9,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 | Problem | What the toolbox does | Why it matters |
 |---|---|---|
 | Long command output is hard to copy | `cgrun` captures the full run and `cgtail` returns a bounded useful tail | You can share clean evidence without flooding chat or terminal scrollback |
-| Shell artifacts can be malformed | `cglint` checks Bash parsing, `shfmt` formatting and ShellCheck findings | Bad scripts stop before execution |
+| Shell artifacts can be malformed | `cglint` blocks parser and ShellCheck warning/error failures, reports `shfmt` formatting drift, and can enforce style with `--strict` | Safety-relevant script failures stop before execution without making whitespace/style a production blocker |
 | Script handoffs are fragile on mobile | `cg-handoff` verifies the downloaded artifact and stages it safely before `cg-run-file` | Short paste commands replace large inline shell payloads |
 | Nested verification overwrites the Android clipboard | The outermost `cgrun` owns the final AutoCopy; nested `cgrun`/`cg-handoff` runs use a clipboard sink | Intermediate checks no longer replace the result you actually need |
 | Runtime/package state is uncertain | `cgdoctor` checks the installed toolbox and Termux environment | Environment problems are separated from task failures |
@@ -31,7 +31,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 | `cgtail` | Return a bounded copy-friendly tail of the bound run |
 | `cg-handoff` | Verify and stage a downloaded shell artifact, run the default `cglint` gate, then delegate to `cg-run-file` |
 | `cg-run-file` | Execute a full script artifact through the repository-owned lane/run contract |
-| `cglint` | Read-only shell validation: parser check, `shfmt -d`, ShellCheck warning/error gate; `--strict` also audits info/style findings |
+| `cglint` | Read-only shell validation: parser and ShellCheck warning/error failures block; `shfmt` drift warns in default mode; `--strict` also blocks formatting and info/style findings |
 | `cgdoctor` | Check Termux/toolbox runtime health and required command availability |
 | `cgfind` | Fast bounded literal search over local files |
 | `cgfail` | Extract useful failure/result markers from a bound run log |
@@ -40,7 +40,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 
 ### Current workflow guarantees
 
-- **Pre-execution lint gate:** `cg-handoff` runs production-default `cglint` before the artifact can reach `cg-run-file`.
+- **Pre-execution lint gate:** `cg-handoff` runs production-default `cglint` before the artifact can reach `cg-run-file`. Parser and ShellCheck warning/error failures remain hard stops; formatting-only `shfmt` drift is surfaced as a warning unless `--strict` is used.
 - **Noninteractive execution:** workflow payload stdin is bound to `/dev/null`, so accidental prompts receive EOF instead of hanging a run.
 - **TTY tail drain:** `cg-handoff` drains delayed interactive terminal input before returning control to the parent shell.
 - **Bundle handoff:** verified ZIP bundle handoff is supported for multi-artifact deliveries.
@@ -134,7 +134,7 @@ For a downloaded full shell artifact, prefer the short `cg-handoff` path:
 cg-handoff pixel_local__example.sh <expected-sha256>
 ```
 
-`cg-handoff` verifies the external SHA-256, stages the artifact safely, runs the production-default `cglint` gate and delegates to `cg-run-file`. Multi-artifact deliveries use the verified bundle handoff rather than several independent paste/run sequences.
+`cg-handoff` verifies the external SHA-256, stages the artifact safely, runs the production-default `cglint` gate and delegates to `cg-run-file`. Formatting-only `shfmt` drift is reported but does not block this production-default path; use `cglint --strict` when canonical formatting is itself a required acceptance criterion. Multi-artifact deliveries use the verified bundle handoff rather than several independent paste/run sequences.
 
 Useful diagnostics:
 
@@ -183,7 +183,7 @@ Do not automatically sync private overlays, logs, backups or host-specific notes
 ## Design principles
 
 - **Small scripts over magic frameworks:** easy to inspect, easy to replace.
-- **Validate before execution:** parser, formatting and static-analysis failures should stop before a shell artifact runs.
+- **Validate before execution:** parser/static-analysis failures stop before a shell artifact runs; formatting drift is visible but only strict mode makes style a hard requirement.
 - **Logs as artifacts:** command output should be reproducible and bounded.
 - **One final clipboard owner:** nested workflows should not fight over Android AutoCopy.
 - **Public-safe by default:** examples are generic; private context stays private.
