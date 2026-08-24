@@ -52,7 +52,14 @@ grep -Fq 'RESULT: CGLINT_FAIL' "$WORK/cglint-info-strict.out" || fail "cglint_st
 grep -Fq 'mode=strict' "$WORK/cglint-info-strict.out" || fail "cglint_strict_mode_marker_missing"
 printf 'PASS: cglint_strict_info_fixture\n'
 
-printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'if true; then printf '\''%s\n'\'' "ok"; fi' >"$WORK/cglint-format.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'if true;then' 'printf '\''%s\n'\'' "ok"' 'fi' >"$WORK/cglint-format.sh"
+format_probe_rc=0
+shfmt -d -- "$WORK/cglint-format.sh" >"$WORK/cglint-format-proof.out" 2>"$WORK/cglint-format-proof.err" || format_probe_rc=$?
+if [[ "$format_probe_rc" -ne 1 || ! -s "$WORK/cglint-format-proof.out" || -s "$WORK/cglint-format-proof.err" ]]; then
+	cat "$WORK/cglint-format-proof.out" >&2 || true
+	cat "$WORK/cglint-format-proof.err" >&2 || true
+	fail "cglint_format_fixture_not_proven_drifting"
+fi
 if ! bash "$ROOT/bin/cglint" "$WORK/cglint-format.sh" >"$WORK/cglint-format-default.out" 2>&1; then
 	cat "$WORK/cglint-format-default.out" >&2
 	fail "cglint_default_shfmt_drift_should_pass"
