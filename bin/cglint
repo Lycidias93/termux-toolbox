@@ -84,18 +84,17 @@ for file in "$@"; do
 	fi
 
 	shfmt_rc=0
-	shfmt_output="$(shfmt -d -- "$file" 2>&1)" || shfmt_rc=$?
+	shfmt_output="$(shfmt -d -- "$file")" || shfmt_rc=$?
 	if [[ "$shfmt_rc" -ne 0 ]]; then
-		if [[ "$shfmt_rc" -eq 1 ]]; then
+		if [[ "$shfmt_rc" -eq 1 && -n "$shfmt_output" ]]; then
 			if [[ "$strict" == "yes" ]]; then
-				[[ -n "$shfmt_output" ]] && printf '%s\n' "$shfmt_output"
+				printf '%s\n' "$shfmt_output"
 				printf 'FAIL: shfmt_diff path=%s mode=strict\n' "$file" >&2
 				fail=1
 				continue
 			fi
 			printf 'WARN: shfmt_diff_nonblocking path=%s mode=default\n' "$file" >&2
 		else
-			[[ -n "$shfmt_output" ]] && printf '%s\n' "$shfmt_output" >&2
 			printf 'FAIL: shfmt_error path=%s exit_code=%s\n' "$file" "$shfmt_rc" >&2
 			fail=1
 			continue
