@@ -5,6 +5,7 @@
 - Added `cglint` for read-only shell artifact validation with parser checks, ShellCheck and `shfmt -d`.
 - `cg-handoff` now runs the production-default `cglint` gate on the private staged shell entrypoint before `cg-run-file`: parser failures, ShellCheck error/warning findings and actual `shfmt` execution errors remain hard stops, while formatting-only `shfmt` drift is warning-only in default mode; `cglint --strict` still blocks formatting drift plus ShellCheck info/style findings.
 - Fixed toolbox verification so genuine formatting-only `cglint` drift is recognized deterministically and no longer blocks installation; real `shfmt` errors remain hard failures.
+- Fixed `cglint` so `shfmt` uses the same detected shell dialect as parser/ShellCheck (`bash` for Bash, `posix` for `sh`/`dash`), preventing valid Bash array/glob syntax from being misparsed as POSIX solely because the artifact filename ends in `.sh`.
 - Nested `cgrun`/`cg-handoff` verification runs no longer overwrite the Android clipboard: the outermost `cgrun` owns the single final AutoCopy, while nested results remain preserved in its bound log and final tail.
 - Added `cgdoctor`, `cgfind` and `cgfail` for faster Termux health checks, repository search and bounded failure-marker diagnosis.
 - Added non-fatal `cgnotify` Android notifications through Termux:API, including a dry-run mode.
