@@ -31,11 +31,15 @@ grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default' "$WOR
 grep -Fq 'shfmt_lang=bash' "$WORK/cglint-good.out" || fail "cglint_bash_dialect_marker_missing"
 printf 'PASS: cglint_positive_fixture\n'
 
+# Keep the dialect fixture within the syntax supported by the Pixel's installed
+# shfmt generation. A Bash array plus pathname glob is enough to prove that
+# cglint binds shfmt to Bash; bracket-class globs in this array context are
+# rejected by that older formatter even though Bash itself accepts them.
 printf '%s\n' \
 	'#!/usr/bin/env bash' \
 	'set -euo pipefail' \
 	'ROOT=/tmp' \
-	'cpu_dirs=("$ROOT"/devices/system/cpu/cpu[0-9]*)' \
+	'cpu_dirs=("$ROOT"/devices/system/cpu/cpu*)' \
 	'printf '\''cpu_dirs=%s\n'\'' "${#cpu_dirs[@]}"' >"$WORK/cglint-bash-array-glob.sh"
 if ! bash "$ROOT/bin/cglint" "$WORK/cglint-bash-array-glob.sh" >"$WORK/cglint-bash-array-glob.out" 2>&1; then
 	cat "$WORK/cglint-bash-array-glob.out" >&2
@@ -96,7 +100,7 @@ if bash "$ROOT/bin/cglint" --strict "$WORK/cglint-format.sh" >"$WORK/cglint-form
 	fail "cglint_strict_shfmt_drift_unexpected_success"
 fi
 grep -Fq 'FAIL: shfmt_diff' "$WORK/cglint-format-strict.out" || fail "cglint_strict_shfmt_failure_missing"
-grep -Fq 'mode=strict' "$WORK/cglint-format-strict.out" || fail "cglint_strict_shfmt_mode_missing"
+grep -Fq 'mode=strict' "$WORK/cglint-format-strict.out" || fail "cglint_strict_mode_marker_missing"
 printf 'PASS: cglint_strict_shfmt_fixture\n'
 
 printf '%s\n' 'alpha marker' 'beta marker' >"$WORK/search.txt"
