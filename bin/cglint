@@ -83,8 +83,13 @@ for file in "$@"; do
 		continue
 	fi
 
+	shfmt_lang="bash"
+	case "$shell" in
+	bash) shfmt_lang="bash" ;;
+	dash | sh) shfmt_lang="posix" ;;
+	esac
 	shfmt_rc=0
-	shfmt_output="$(shfmt -d -- "$file")" || shfmt_rc=$?
+	shfmt_output="$(shfmt -ln="$shfmt_lang" -d -- "$file")" || shfmt_rc=$?
 	if [[ "$shfmt_rc" -ne 0 ]]; then
 		if [[ "$shfmt_rc" -eq 1 && -n "$shfmt_output" ]]; then
 			if [[ "$strict" == "yes" ]]; then
@@ -95,14 +100,14 @@ for file in "$@"; do
 			fi
 			printf 'WARN: shfmt_diff_nonblocking path=%s mode=default\n' "$file" >&2
 		else
-			printf 'FAIL: shfmt_error path=%s exit_code=%s\n' "$file" "$shfmt_rc" >&2
+			printf 'FAIL: shfmt_error path=%s shell=%s shfmt_lang=%s exit_code=%s\n' "$file" "$shell" "$shfmt_lang" "$shfmt_rc" >&2
 			fail=1
 			continue
 		fi
 	fi
 
 	checked=$((checked + 1))
-	printf 'PASS: cglint path=%s shell=%s severity=%s\n' "$file" "$shell" "$severity"
+	printf 'PASS: cglint path=%s shell=%s shfmt_lang=%s severity=%s\n' "$file" "$shell" "$shfmt_lang" "$severity"
 done
 
 if [[ "$fail" -ne 0 ]]; then
