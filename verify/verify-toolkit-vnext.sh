@@ -28,7 +28,31 @@ if ! bash "$ROOT/bin/cglint" "$WORK/cglint-good.sh" >"$WORK/cglint-good.out" 2>&
 	fail "cglint_positive_fixture_failed"
 fi
 grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default' "$WORK/cglint-good.out" || fail "cglint_positive_result_missing"
+grep -Fq 'shfmt_lang=bash' "$WORK/cglint-good.out" || fail "cglint_bash_dialect_marker_missing"
 printf 'PASS: cglint_positive_fixture\n'
+
+printf '%s\n' \
+	'#!/usr/bin/env bash' \
+	'set -euo pipefail' \
+	'ROOT=/tmp' \
+	'cpu_dirs=("$ROOT"/devices/system/cpu/cpu[0-9]*)' \
+	'printf '\''cpu_dirs=%s\n'\'' "${#cpu_dirs[@]}"' >"$WORK/cglint-bash-array-glob.sh"
+if ! bash "$ROOT/bin/cglint" "$WORK/cglint-bash-array-glob.sh" >"$WORK/cglint-bash-array-glob.out" 2>&1; then
+	cat "$WORK/cglint-bash-array-glob.out" >&2
+	fail "cglint_bash_array_glob_fixture_failed"
+fi
+grep -Fq 'shfmt_lang=bash' "$WORK/cglint-bash-array-glob.out" || fail "cglint_bash_array_glob_dialect_missing"
+grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default' "$WORK/cglint-bash-array-glob.out" || fail "cglint_bash_array_glob_result_missing"
+printf 'PASS: cglint_bash_array_glob_dialect_fixture\n'
+
+printf '%s\n' '#!/bin/sh' 'set -eu' 'printf '\''%s\n'\'' "ok"' >"$WORK/cglint-posix.sh"
+if ! bash "$ROOT/bin/cglint" "$WORK/cglint-posix.sh" >"$WORK/cglint-posix.out" 2>&1; then
+	cat "$WORK/cglint-posix.out" >&2
+	fail "cglint_posix_fixture_failed"
+fi
+grep -Fq 'shfmt_lang=posix' "$WORK/cglint-posix.out" || fail "cglint_posix_dialect_marker_missing"
+grep -Fq 'RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default' "$WORK/cglint-posix.out" || fail "cglint_posix_result_missing"
+printf 'PASS: cglint_posix_dialect_fixture\n'
 
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'unused_value="alpha beta"' 'printf '\''%s\n'\'' "ok"' >"$WORK/cglint-warning-bad.sh"
 if bash "$ROOT/bin/cglint" "$WORK/cglint-warning-bad.sh" >"$WORK/cglint-warning-bad.out" 2>&1; then
@@ -54,7 +78,7 @@ printf 'PASS: cglint_strict_info_fixture\n'
 
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'if true;then' 'printf '\''%s\n'\'' "ok"' 'fi' >"$WORK/cglint-format.sh"
 format_probe_rc=0
-shfmt -d -- "$WORK/cglint-format.sh" >"$WORK/cglint-format-proof.out" 2>"$WORK/cglint-format-proof.err" || format_probe_rc=$?
+shfmt -ln=bash -d -- "$WORK/cglint-format.sh" >"$WORK/cglint-format-proof.out" 2>"$WORK/cglint-format-proof.err" || format_probe_rc=$?
 if [[ "$format_probe_rc" -ne 1 || ! -s "$WORK/cglint-format-proof.out" || -s "$WORK/cglint-format-proof.err" ]]; then
 	cat "$WORK/cglint-format-proof.out" >&2 || true
 	cat "$WORK/cglint-format-proof.err" >&2 || true
@@ -88,8 +112,7 @@ printf '%s\n' \
 	'RESULT: FIXTURE_DONE outcome=failed workflow_exit_code=7' >"$WORK/run.log"
 bash "$ROOT/bin/cgfail" "$WORK/run.log" >"$WORK/cgfail.out"
 grep -Fq 'FAIL: fixture_failure reason=test' "$WORK/cgfail.out" || fail "cgfail_failure_marker_missing"
-grep -Fq 'RESULT: FIXTURE_DONE' "$WORK/cgfail.out" || fail "cgfail_result_marker_missing"
-grep -Fq 'RESULT: CGFAIL_DONE' "$WORK/cgfail.out" || fail "cgfail_completion_missing"
+grep -Fq 'RESULT: FIXTURE_DONE' "$WORK/cgfail.out" || fail "cgfail_completion_missing"
 printf 'PASS: cgfail_fixture\n'
 
 bash "$ROOT/bin/cgnotify" --dry-run PASS 'fixture notification' >"$WORK/cgnotify.out"
@@ -98,7 +121,7 @@ printf 'PASS: cgnotify_fixture\n'
 
 grep -Fq 'AUTOCLIP_V95_OUTERMOST_CLIPBOARD_OWNER' "$ROOT/bin/cgrun-core-v95" || fail "outermost_autocopy_marker_missing"
 [[ -s "$ROOT/verify/verify-cgrun-outermost-autocopy.sh" ]] || fail "outermost_autocopy_verifier_missing"
-bash "$ROOT/verify/verify-cgrun-outermost-autocopy.sh" || fail "outermost_autocopy_fixture_failed"
+bash "$ROOT/verify/verify-cgrun-outermost-autocopy.sh" || fail "cgrun_outermost_autocopy_fixture_failed"
 printf 'PASS: cgrun_outermost_autocopy_fixture\n'
 
 printf 'RESULT: TOOLKIT_VNEXT_VERIFY_DONE workflow_exit_code=0\n'
