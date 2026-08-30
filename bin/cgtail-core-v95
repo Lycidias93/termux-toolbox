@@ -1,86 +1,88 @@
 #!/usr/bin/env bash
 # AUTOCLIP_V95_CGTAIL_CORE
+# AUTOCLIP_V95_EXACT_LOG_INPUT_V2
+# AUTOCLIP_V95_DIAGNOSTIC_ENVELOPE_V1
 set -euo pipefail
 
 HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
 OUT_DIR="${CG_OUTPUT_DIR:-$HOME_DIR/.chatgpt-output}"
 LATEST="$OUT_DIR/latest.log"
-REQUESTED="${1:-dynamic}"
+REQUESTED="dynamic"
+REQUESTED_LOG="$LATEST"
+DIAGNOSTIC="no"
 DYNAMIC_MIN="${CGTAIL_DYNAMIC_MIN_LINES:-40}"
 DYNAMIC_MAX="${CGTAIL_DYNAMIC_MAX_LINES:-160}"
 MAX_BYTES="${CGTAIL_MAX_BYTES:-30000}"
+FAILURE_BEFORE="${CGTAIL_FAILURE_CONTEXT_BEFORE:-5}"
+FAILURE_AFTER="${CGTAIL_FAILURE_CONTEXT_AFTER:-12}"
 
-is_uint() {
-  case "${1:-}" in
-    ''|*[!0-9]*) return 1 ;;
-    *) return 0 ;;
-  esac
-}
+is_uint() { case "${1:-}" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+fail() { printf 'FAIL: %s\n' "$1" >&2; printf 'RESULT: CGTAIL_FAILED outcome=%s command_exit_code=1\n' "$1" >&2; (exit 1); }
 
-fail() {
-  printf 'FAIL: %s\n' "$1" >&2
-  printf 'RESULT: CGTAIL_FAILED outcome=%s command_exit_code=1\n' "$1" >&2
-  exit 1
-}
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	--log) shift; [ "$#" -gt 0 ] || fail "log_path_missing"; REQUESTED_LOG="$1" ;;
+	--diagnostic) DIAGNOSTIC="yes" ;;
+	--tail-only) DIAGNOSTIC="no" ;;
+	dynamic) REQUESTED="dynamic" ;;
+	*) if is_uint "$1"; then REQUESTED="$1"; else fail "unknown_argument value=$1"; fi ;;
+	esac
+	shift
+done
 
-[ -e "$LATEST" ] || fail "latest_log_missing path=$LATEST"
-RESOLVED="$(readlink -f "$LATEST" 2>/dev/null || printf '%s\n' "$LATEST")"
+[ -e "$REQUESTED_LOG" ] || fail "requested_log_missing path=$REQUESTED_LOG"
+RESOLVED="$(readlink -f "$REQUESTED_LOG" 2>/dev/null || printf '%s\n' "$REQUESTED_LOG")"
 [ -f "$RESOLVED" ] || fail "resolved_log_missing path=$RESOLVED"
-
 is_uint "$DYNAMIC_MIN" || fail "dynamic_min_invalid value=$DYNAMIC_MIN"
 is_uint "$DYNAMIC_MAX" || fail "dynamic_max_invalid value=$DYNAMIC_MAX"
 is_uint "$MAX_BYTES" || fail "max_bytes_invalid value=$MAX_BYTES"
+is_uint "$FAILURE_BEFORE" || fail "failure_before_invalid value=$FAILURE_BEFORE"
+is_uint "$FAILURE_AFTER" || fail "failure_after_invalid value=$FAILURE_AFTER"
 [ "$DYNAMIC_MIN" -le "$DYNAMIC_MAX" ] || fail "dynamic_range_invalid"
 
 TOTAL_LINES="$(wc -l < "$RESOLVED" | tr -d '[:space:]')"
 TOTAL_BYTES="$(wc -c < "$RESOLVED" | tr -d '[:space:]')"
 MODE="explicit"
-
 if [ "$REQUESTED" = "dynamic" ]; then
-  MODE="dynamic"
-  if [ "$TOTAL_LINES" -lt "$DYNAMIC_MIN" ]; then
-    SELECTED="$TOTAL_LINES"
-  elif [ "$TOTAL_LINES" -gt "$DYNAMIC_MAX" ]; then
-    SELECTED="$DYNAMIC_MAX"
-  else
-    SELECTED="$TOTAL_LINES"
-  fi
+	MODE="dynamic"
+	if [ "$TOTAL_LINES" -lt "$DYNAMIC_MIN" ]; then SELECTED="$TOTAL_LINES"; elif [ "$TOTAL_LINES" -gt "$DYNAMIC_MAX" ]; then SELECTED="$DYNAMIC_MAX"; else SELECTED="$TOTAL_LINES"; fi
 else
-  is_uint "$REQUESTED" || fail "requested_lines_invalid value=$REQUESTED"
-  SELECTED="$REQUESTED"
+	is_uint "$REQUESTED" || fail "requested_lines_invalid value=$REQUESTED"
+	SELECTED="$REQUESTED"
 fi
 
 TMP_BASE="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
 mkdir -p "$TMP_BASE"
-TMP="$(mktemp "$TMP_BASE/cgtail-v95.XXXXXX")"
-trap 'rm -f "$TMP"' EXIT
+TAIL_TMP="$(mktemp "$TMP_BASE/cgtail-v95-tail.XXXXXX")"
+trap 'rm -f "$TAIL_TMP"' EXIT
 
-tail -n "$SELECTED" "$RESOLVED" > "$TMP"
-CURRENT_BYTES="$(wc -c < "$TMP" | tr -d '[:space:]')"
-
+tail -n "$SELECTED" "$RESOLVED" > "$TAIL_TMP"
+CURRENT_BYTES="$(wc -c < "$TAIL_TMP" | tr -d '[:space:]')"
 while [ "$CURRENT_BYTES" -gt "$MAX_BYTES" ] && [ "$SELECTED" -gt 1 ]; do
-  if [ "$SELECTED" -gt 10 ]; then
-    SELECTED=$((SELECTED - 10))
-  else
-    SELECTED=$((SELECTED - 1))
-  fi
-  tail -n "$SELECTED" "$RESOLVED" > "$TMP"
-  CURRENT_BYTES="$(wc -c < "$TMP" | tr -d '[:space:]')"
+	if [ "$SELECTED" -gt 10 ]; then SELECTED=$((SELECTED - 10)); else SELECTED=$((SELECTED - 1)); fi
+	tail -n "$SELECTED" "$RESOLVED" > "$TAIL_TMP"
+	CURRENT_BYTES="$(wc -c < "$TAIL_TMP" | tr -d '[:space:]')"
 done
 
+SOURCE_MODE="bound"; [ "$REQUESTED_LOG" = "$LATEST" ] && SOURCE_MODE="latest-compat"
 printf '%s\n' '== cgtail =='
 date '+%Y-%m-%dT%H:%M:%S%z'
-printf 'version=v9.5-native-core\n'
-printf 'mode=%s\n' "$MODE"
-printf 'requested_lines=%s\n' "$REQUESTED"
-printf 'selected_lines=%s\n' "$SELECTED"
-printf 'dynamic_min_lines=%s\n' "$DYNAMIC_MIN"
-printf 'dynamic_max_lines=%s\n' "$DYNAMIC_MAX"
-printf 'max_bytes=%s\n' "$MAX_BYTES"
-printf 'requested_log=%s\n' "$LATEST"
-printf 'resolved=%s\n' "$RESOLVED"
-printf 'bytes=%s\n' "$TOTAL_BYTES"
-printf 'lines=%s\n' "$TOTAL_LINES"
-printf '\n'
-cat "$TMP"
-printf '\nRESULT: CGTAIL_DONE outcome=success command_exit_code=0\n'
+printf 'version=v9.5-native-core-io-vnext\nmode=%s\ndiagnostic=%s\nsource_mode=%s\nrequested_lines=%s\nselected_lines=%s\nmax_bytes=%s\nrequested_log=%s\nresolved=%s\nbytes=%s\nlines=%s\n' "$MODE" "$DIAGNOSTIC" "$SOURCE_MODE" "$REQUESTED" "$SELECTED" "$MAX_BYTES" "$REQUESTED_LOG" "$RESOLVED" "$TOTAL_BYTES" "$TOTAL_LINES"
+
+if [ "$DIAGNOSTIC" = "yes" ]; then
+	FIRST_FAILURE_LINE="$(grep -n -m1 -E '^(FAIL:|STOP:|ERROR:)|^RESULT:.*(FAILED|FAIL|STOP|BLOCKED|DEGRADED)' "$RESOLVED" 2>/dev/null | cut -d: -f1 || true)"
+	printf '\n%s\n' '== diagnostic envelope =='
+	if [ -n "$FIRST_FAILURE_LINE" ]; then
+		START=$((FIRST_FAILURE_LINE - FAILURE_BEFORE)); [ "$START" -lt 1 ] && START=1; END=$((FIRST_FAILURE_LINE + FAILURE_AFTER))
+		printf 'first_failure_line=%s context=%s_before_%s_after\n' "$FIRST_FAILURE_LINE" "$FAILURE_BEFORE" "$FAILURE_AFTER"
+		printf '%s\n' '-- first failure context --'
+		sed -n "${START},${END}p" "$RESOLVED"
+	else
+		printf '%s\n' 'first_failure_line=none'
+	fi
+	printf '%s\n' '-- final tail --'
+else
+	printf '\n'
+fi
+cat "$TAIL_TMP"
+printf '\nRESULT: CGTAIL_DONE outcome=success command_exit_code=0 source_mode=%s diagnostic=%s\n' "$SOURCE_MODE" "$DIAGNOSTIC"
