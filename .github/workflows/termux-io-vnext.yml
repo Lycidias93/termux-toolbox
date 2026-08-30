@@ -10,6 +10,9 @@ on:
       - 'bin/cg-lane.sh'
       - 'verify/verify-cg-execution-receipt.sh'
       - 'verify/verify-termux-io-vnext.sh'
+      - 'README.md'
+      - 'docs/cg-execution-receipt.md'
+      - 'docs/cgrun-v95-native-core.md'
       - '.github/workflows/termux-io-vnext.yml'
   push:
     branches: [main]
@@ -30,7 +33,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Bash syntax
@@ -41,3 +44,5 @@ jobs:
         run: bash verify/verify-cg-execution-receipt.sh
       - name: I/O vNext regression
         run: bash verify/verify-termux-io-vnext.sh
+      - name: Aggregate toolbox regression
+        run: bash verify/verify-termux-toolbox.sh
