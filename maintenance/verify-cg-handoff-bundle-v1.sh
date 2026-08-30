@@ -6,42 +6,24 @@ HANDOFF="${CG_HANDOFF_PATH:-$ROOT/bin/cg-handoff}"
 TMP_ROOT="${TMPDIR:-/tmp}"
 WORK="$(mktemp -d "$TMP_ROOT/cg-handoff-bundle-fixture.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM HUP
-
-fail() {
-	printf 'RESULT: CG_HANDOFF_BUNDLE_FIXTURE_STOP outcome=stop reason=%s workflow_exit_code=1\n' "$1"
-	exit 1
-}
+fail() { printf 'RESULT: CG_HANDOFF_BUNDLE_FIXTURE_STOP outcome=stop reason=%s workflow_exit_code=1\n' "$1"; exit 1; }
 
 mkdir -p "$WORK/Download" "$WORK/bin" "$WORK/tmp" "$WORK/bundle"
-for name in cgprep cclear cgcurrent; do
-	printf '#!/usr/bin/env bash\nexit 0\n' >"$WORK/bin/$name"
-	chmod 0700 "$WORK/bin/$name"
-done
-printf '#!/usr/bin/env bash\nprintf '\''CGUSE:%%s\\n'\'' "$*"\n' >"$WORK/bin/cguse"
-chmod 0700 "$WORK/bin/cguse"
-printf '#!/usr/bin/env bash\nprintf '\''RUNFILE:%%s\\n'\'' "$*"\nprintf '\''MARKER:%%s\\n'\'' "${CGFLOW_EXPECTED_MARKER:-}"\nbash "$1"\n' >"$WORK/bin/cg-run-file"
-chmod 0700 "$WORK/bin/cg-run-file"
+for name in cgprep cclear cgcurrent; do printf '#!/usr/bin/env bash\nexit 0\n' >"$WORK/bin/$name"; chmod 0700 "$WORK/bin/$name"; done
+printf '#!/usr/bin/env bash\nprintf '\''CGUSE:%%s\\n'\'' "$*"\n' >"$WORK/bin/cguse"; chmod 0700 "$WORK/bin/cguse"
+printf '#!/usr/bin/env bash\nprintf '\''RUNFILE:%%s\\n'\'' "$*"\nprintf '\''MARKER:%%s\\n'\'' "${CGFLOW_EXPECTED_MARKER:-}"\nbash "$1"\n' >"$WORK/bin/cg-run-file"; chmod 0700 "$WORK/bin/cg-run-file"
+# cg-handoff owns a mandatory default cglint gate. The bundle fixture isolates
+# bundle semantics, so provide a deterministic passing cglint dependency rather
+# than accidentally depending on the developer/CI host PATH.
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'printf "%s\n" "RESULT: CGLINT_DONE checked=$# workflow_exit_code=0 mode=default"' >"$WORK/bin/cglint"; chmod 0700 "$WORK/bin/cglint"
 
 entry="$WORK/bundle/pixel_local__bundle_fixture.sh"
 {
-	printf '%s\n' '#!/usr/bin/env bash'
-	printf '%s\n' '# CG_HANDOFF_V1_START'
-	printf '%s\n' '# cg_handoff_lane=bundle-fixture'
-	printf '%s\n' '# cg_handoff_scope=pixel'
-	printf '%s\n' '# cg_handoff_host=pixel'
-	printf '%s\n' '# cg_handoff_route_class=none'
-	printf '%s\n' '# cg_handoff_secret_class=redacted'
-	printf '%s\n' '# cg_handoff_run_mode=run'
-	printf '%s\n' '# cg_handoff_expected_marker=RESULT: BUNDLE_FIXTURE_PASS'
-	printf '%s\n' '# CG_HANDOFF_V1_END'
-	printf '%s\n' 'printf "RESULT: BUNDLE_FIXTURE_PASS\n"'
+	printf '%s\n' '#!/usr/bin/env bash' '# CG_HANDOFF_V1_START' '# cg_handoff_lane=bundle-fixture' '# cg_handoff_scope=pixel' '# cg_handoff_host=pixel' '# cg_handoff_route_class=none' '# cg_handoff_secret_class=redacted' '# cg_handoff_run_mode=run' '# cg_handoff_expected_marker=RESULT: BUNDLE_FIXTURE_PASS' '# CG_HANDOFF_V1_END' 'printf "RESULT: BUNDLE_FIXTURE_PASS\n"'
 } >"$entry"
 chmod 0700 "$entry"
 printf 'payload\n' >"$WORK/bundle/payload.txt"
-entry_size="$(wc -c <"$entry" | tr -d '[:space:]')"
-entry_sha="$(sha256sum "$entry" | awk '{print $1}')"
-payload_size="$(wc -c <"$WORK/bundle/payload.txt" | tr -d '[:space:]')"
-payload_sha="$(sha256sum "$WORK/bundle/payload.txt" | awk '{print $1}')"
+entry_size="$(wc -c <"$entry" | tr -d '[:space:]')"; entry_sha="$(sha256sum "$entry" | awk '{print $1}')"; payload_size="$(wc -c <"$WORK/bundle/payload.txt" | tr -d '[:space:]')"; payload_sha="$(sha256sum "$WORK/bundle/payload.txt" | awk '{print $1}')"
 cat >"$WORK/bundle/BUNDLE_MANIFEST.txt" <<EOF
 bundle_format_version=1
 entrypoint=pixel_local__bundle_fixture.sh
@@ -63,6 +45,7 @@ output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OU
 printf '%s\n' "$output"
 printf '%s\n' "$output" | grep -Fq 'CG_HANDOFF_BUNDLE_V1' || fail bundle_marker_missing
 printf '%s\n' "$output" | grep -Fq 'CGUSE:bundle-fixture pixel pixel none redacted' || fail bundle_cguse_binding_failed
+printf '%s\n' "$output" | grep -Fq 'RESULT: CGLINT_DONE' || fail bundle_cglint_gate_missing
 printf '%s\n' "$output" | grep -Fq 'RUNFILE:' || fail bundle_run_file_missing
 printf '%s\n' "$output" | grep -Fq ' run pixel pixel none redacted' || fail bundle_run_file_args_failed
 printf '%s\n' "$output" | grep -Fq 'MARKER:RESULT: BUNDLE_FIXTURE_PASS' || fail bundle_expected_marker_failed
@@ -71,34 +54,21 @@ printf '%s\n' 'PASS bundle_success'
 
 mkdir -p "$WORK/tampered"
 (
-	cd "$WORK/tampered"
-	unzip -q "$WORK/Download/cg-handoff-fixture.zip"
-	printf 'tamper\n' >>payload.txt
-	zip -q "$WORK/Download/cg-handoff-tampered.zip" BUNDLE_MANIFEST.txt pixel_local__bundle_fixture.sh payload.txt
+	cd "$WORK/tampered"; unzip -q "$WORK/Download/cg-handoff-fixture.zip"; printf 'tamper\n' >>payload.txt; zip -q "$WORK/Download/cg-handoff-tampered.zip" BUNDLE_MANIFEST.txt pixel_local__bundle_fixture.sh payload.txt
 )
 tampered_sha="$(sha256sum "$WORK/Download/cg-handoff-tampered.zip" | awk '{print $1}')"
-set +e
-tampered_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-tampered" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" cg-handoff-tampered.zip "$tampered_sha" 2>&1)"
-tampered_rc=$?
-set -e
+set +e; tampered_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-tampered" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" cg-handoff-tampered.zip "$tampered_sha" 2>&1)"; tampered_rc=$?; set -e
 [[ "$tampered_rc" -eq 2 ]] || fail bundle_tampered_rc
 printf '%s\n' "$tampered_output" | grep -Eq 'reason=bundle_member_2_(size|sha)_mismatch' || fail bundle_tampered_reason
 printf '%s\n' 'PASS bundle_member_integrity'
 
-mkdir -p "$WORK/unexpected"
-cp "$WORK/bundle/"* "$WORK/unexpected/"
-printf 'extra\n' >"$WORK/unexpected/extra.txt"
+mkdir -p "$WORK/unexpected"; cp "$WORK/bundle/"* "$WORK/unexpected/"; printf 'extra\n' >"$WORK/unexpected/extra.txt"
 (
-	cd "$WORK/unexpected"
-	zip -q "$WORK/Download/cg-handoff-unexpected.zip" BUNDLE_MANIFEST.txt pixel_local__bundle_fixture.sh payload.txt extra.txt
+	cd "$WORK/unexpected"; zip -q "$WORK/Download/cg-handoff-unexpected.zip" BUNDLE_MANIFEST.txt pixel_local__bundle_fixture.sh payload.txt extra.txt
 )
 unexpected_sha="$(sha256sum "$WORK/Download/cg-handoff-unexpected.zip" | awk '{print $1}')"
-set +e
-unexpected_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-unexpected" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" cg-handoff-unexpected.zip "$unexpected_sha" 2>&1)"
-unexpected_rc=$?
-set -e
+set +e; unexpected_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-unexpected" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" cg-handoff-unexpected.zip "$unexpected_sha" 2>&1)"; unexpected_rc=$?; set -e
 [[ "$unexpected_rc" -eq 2 ]] || fail bundle_unexpected_rc
 printf '%s\n' "$unexpected_output" | grep -Fq 'reason=bundle_unexpected_member_count' || fail bundle_unexpected_reason
 printf '%s\n' 'PASS bundle_unexpected_member_rejected'
-
 printf 'RESULT: CG_HANDOFF_BUNDLE_FIXTURE_PASS outcome=success workflow_exit_code=0\n'

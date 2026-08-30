@@ -1,0 +1,48 @@
+name: Termux I/O vNext
+
+on:
+  pull_request:
+    paths:
+      - 'bin/cgrun'
+      - 'bin/cgrun-core-v95'
+      - 'bin/cgtail-core-v95'
+      - 'bin/cg-run-file-driver-v1'
+      - 'bin/cg-lane.sh'
+      - 'verify/verify-cg-execution-receipt.sh'
+      - 'verify/verify-termux-io-vnext.sh'
+      - 'README.md'
+      - 'docs/cg-execution-receipt.md'
+      - 'docs/cgrun-v95-native-core.md'
+      - '.github/workflows/termux-io-vnext.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'bin/cgrun'
+      - 'bin/cgrun-core-v95'
+      - 'bin/cgtail-core-v95'
+      - 'bin/cg-run-file-driver-v1'
+      - 'bin/cg-lane.sh'
+      - 'verify/verify-cg-execution-receipt.sh'
+      - 'verify/verify-termux-io-vnext.sh'
+      - '.github/workflows/termux-io-vnext.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax
+        run: |
+          bash -n bin/cgrun bin/cgrun-core-v95 bin/cgtail-core-v95 bin/cg-run-file-driver-v1 bin/cg-lane.sh
+          bash -n verify/verify-cg-execution-receipt.sh verify/verify-termux-io-vnext.sh
+      - name: Receipt v2 regression
+        run: bash verify/verify-cg-execution-receipt.sh
+      - name: I/O vNext regression
+        run: bash verify/verify-termux-io-vnext.sh
+      - name: Aggregate toolbox regression
+        run: bash verify/verify-termux-toolbox.sh

@@ -1,120 +1,95 @@
-# cgrun v9.5 native core and original task binding
+# cgrun v9.5 native core / Termux I/O vNext
 
-## Root cause
+## Architecture
 
-The execution-receipt wrapper originally delegated every run to the pre-existing local file
-`$PREFIX/bin/cgrun.autoclip-v93-real`. The repository installer checked that file but did not
-own or replace it. A successful wrapper installation therefore kept the old v9.3 execution
-core active. Its legacy completion marker `RESULT: CGRUN_DONE rc=<n>` remained visible inside
-otherwise valid v9.5 output.
+The repository owns the active runtime:
 
-`cg-run-file` also normalized native Termux shebangs into a temporary file named
-`cg-run-file-normalized.*`. The lane layer derived the receipt task from that temporary
-execution path, so the original artifact basename was lost.
+- `bin/cgrun`: exact execution identity, Receipt v2, semantic result and outer AutoCopy
+- `bin/cgrun-core-v95`: command execution, exact log creation, heartbeat, timeout and stdin isolation
+- `bin/cgtail-core-v95`: exact-log bounded tail and diagnostic envelope
+- `bin/cg-run-file-driver-v1`: canonical lane/run engine
+- `bin/cg-lane.sh`: lane state/status utility; `run-file` delegates to the canonical driver
+- `bin/cgrun.autoclip-v93-real` and `bin/cgtail-autoclip-v93`: compatibility shims only
 
-The first native-core regression was correct when run from a clean shell, but it inherited
-`CG_RUN_*` and `CG_LANE_*` variables when invoked from an outer `cg-run-file` workflow. That
-made its direct-run cases identify the outer controller task and lane instead of the isolated
-test values. Because the first assertion failed under `set -e`, the regression stopped before
-printing its PASS markers.
+## Exact-run binding
 
-After environment isolation was added, the intentionally failing `exit 7` case still invoked
-the global `ERR` diagnostic trap. `set +e` permits control flow to continue, but it does not
-turn an `ERR` trap into an expected-result handler. The failure case is therefore executed as
-the condition of an `if` statement, where its exit status is captured and asserted explicitly;
-only unexpected failures reach the diagnostic trap.
+Older generations used global `$HOME/.chatgpt-output/latest.log` as both a convenience pointer and an internal handoff input. Two overlapping runs could therefore change the pointer between command completion, tail generation and lane adoption.
 
-A fresh Pixel native-core smoke then exposed a final identity mismatch: `cg-run-file` omitted
-its mode argument by default, so `cg-lane.sh` used the uppercase default `VERIFY` when building
-the outer run ID. The receipt sanitizer canonicalized that value to lowercase `verify`, leaving
-the outer completion and receipt with different run IDs. `cg-run-file` now canonicalizes the
-mode to `verify|run` before the lane creates the run ID and rejects all other values.
+I/O vNext assigns each run an `execution_id` and stores evidence below:
 
-The aggregate verifier also changed every shebang-bearing source file to executable with
-`chmod +x`. Git recorded those mutations as `100644 -> 100755` mode-only changes even though
-all file contents remained byte-identical. That made later guarded updates stop on a dirty
-worktree created by the verifier itself.
+```text
+$CG_OUTPUT_DIR/runs/<execution_id>/
+```
 
-A later Pixel restore exposed a separate shell-resolution defect. The installed v9.5 files
-were correct, but an old `cgrun()` and `cgtail()` function block restored into `~/.bashrc`
-shadowed the files in `$PREFIX/bin`. The functions called the historical v9.3 compatibility
-names and added a second AutoTail, so the clipboard handoff was overwritten and the obsolete
-`CGRUN_AUTO_TAIL_DONE rc=... original_cgrun_rc=...` marker returned.
+The core receives an exact `CGRUN_BOUND_LOG_PATH`; the wrapper passes that same path explicitly to `cgtail-core-v95 --log ...`, and the run-file driver derives the same path directly from its `run_id`. `latest.log` is still updated for compatibility, but no internal proof step consumes it.
 
-A further workflow reliability issue was that the background `bash -lc` payload inherited the
-interactive Termux stdin. A payload or child command that unexpectedly called `read`, `select`
-or another prompt-capable primitive could therefore block the entire workflow waiting for user
-input even though `cgrun` is intended to be noninteractive.
+For a lane/run-file execution, `execution_id == run_id`, so lane metadata, log, AutoCopy and final receipt are byte-stable on the same identity.
 
-## Fixed architecture
+## Input modes
 
-The repository now owns the full active runtime:
+The native core supports:
 
-- `bin/cgrun`: receipt, AutoCopy, lane identity, and workflow result
-- `bin/cgrun-core-v95`: command execution, log creation, heartbeat, timeout, and named core result
-- `bin/cgtail-core-v95`: bounded dynamic tail output
-- `bin/cgrun.autoclip-v93-real`: compatibility shim only
-- `bin/cgtail-autoclip-v93`: compatibility shim only
+- `--shell <one string>` for deliberate Bash parsing
+- `--exec <command> <arg...>` for argv-preserving execution
+- the historical single shell-string form as compatibility mode
 
-The active wrapper calls the v9.5 core files directly. The legacy filenames remain installed
-only so older local callers fail over to the same repository-owned implementation rather than
-an unmanaged restored file.
+The canonical run-file driver uses `cgrun --exec`, eliminating its former quote/reparse layer.
 
-For normalized scripts, `cg-run-file` creates a unique temporary directory but keeps the
-original artifact basename. Receipts therefore identify the user-visible artifact, not the
-normalization directory. The run mode is canonicalized before run-ID creation, so the lane,
-core metadata, receipt, AutoCopy handoff, and outer completion share one byte-identical run ID.
+All workflow payloads still receive stdin from `/dev/null`. There is no implicit interactive fallback; accidental prompts receive EOF instead of hanging the run.
 
-`cgrun-core-v95` now always launches workflow payloads with stdin connected to `/dev/null`.
-There is no implicit interactive fallback. Prompt-capable code receives EOF immediately and
-must either handle that noninteractive condition or fail normally; it can no longer hold a
-workflow open waiting for Enter or another terminal response. The core records
-`stdin_mode=dev-null` in both metadata and its completion output.
+## Diagnostic handoff
 
-Repository verification is read-only with respect to tracked source files. Shell checks use
-`bash -n`, nested verifier scripts are invoked explicitly with `bash`, and the aggregate
-verifier compares Git status before and after execution. Any verifier-created worktree change
-is a hard failure.
+`cgtail-core-v95` supports `--log <exact-path> --diagnostic`. The diagnostic envelope contains:
 
-`maintenance/ensure-native-cg-shell-guard.sh` owns an idempotent final block in `~/.bashrc`.
-Every installer and maintenance run removes older copies of that block, appends one canonical
-copy at the end, unsets restored legacy functions, refreshes Bash command hashing, and verifies
-that interactive Bash resolves `cgrun` and `cgtail` as the native files in `$PREFIX/bin`.
-A changed shell file is backed up under `$HOME/.chatgpt-output/native-cg-shell-guard-backups`.
-The guard does not delete the historical function source; it makes it inert after shell startup
-and therefore remains reversible through the recorded backup.
+1. exact source/log metadata;
+2. the first relevant failure marker with bounded context;
+3. a bounded final tail;
+4. an explicit result marker.
+
+This keeps the earliest root-cause evidence even when a long command produces hundreds of lines after the failure.
+
+## Clipboard and handoff truth
+
+The outer `cgrun` remains the sole AutoCopy owner. Numeric results are tracked independently as command/helper/clipboard/handoff/workflow exits.
+
+A clipboard failure can no longer inherit a zero handoff code merely because tail generation succeeded. Non-strict mode may leave the command’s shell exit at zero, but the workflow is explicitly `DEGRADED`. Strict mode promotes the handoff code to the workflow exit.
+
+When clipboard readback is available, `cgrun` compares SHA-256 of the expected handoff with readback and records only `match`/`mismatch`/failure state, not clipboard contents.
+
+## Semantic workflow result
+
+Receipt v2 preserves all numeric layer codes and adds stable workflow semantics: exit ID, class, stage, retry policy, auto-fix eligibility, and diagnosis/fix/verify routing identifiers. A generic nonzero payload result remains `WORKFLOW_UNCLASSIFIED_NONZERO` unless stronger evidence exists.
+
+## Canonical run-file engine
+
+`cg-run-file-driver-v1` is the sole execution engine. `cg-lane.sh run-file` now delegates to it instead of maintaining a second lock/wrapper/receipt implementation. The driver retains PID/start-tick stale-lock recovery and emits an explicit concurrency semantic on a live lane lock.
+
+## Historical reliability fixes retained
+
+I/O vNext preserves prior guarantees:
+
+- original artifact basename survives Termux shebang normalization;
+- mode is canonicalized to `verify|run` before run-ID creation;
+- restored legacy shell functions are neutralized by the native shell guard;
+- nested AutoCopy writes are sent to the outer run’s sink;
+- repository verification remains read-only with respect to tracked source files;
+- `cg-handoff` lint, bundle and TTY-tail-drain contracts remain upstream of `cg-run-file`.
 
 ## Verification
 
-`verify/verify-cg-execution-receipt.sh` checks:
+`verify/verify-cg-execution-receipt.sh` verifies Receipt v2, exact log binding, semantic success/failure, clipboard hash readback and task identity.
 
-- direct success and failure through the repository-owned core
-- explicit capture of the expected failure exit code without invoking the unexpected-error trap
-- absence of generic `rc=` fields in `CGRUN_*` result markers
-- original artifact task binding
-- receipt presence in the clipboard handoff
-- isolation from inherited outer `CG_RUN_*` and `CG_LANE_*` values by running each case through
-  a minimal `env -i` environment
-- diagnostic capture output on any future unexpected assertion failure
+`verify/verify-termux-io-vnext.sh` verifies:
 
-`verify/verify-cg-run-file-termux-shebang.sh` checks that shebang normalization preserves the
-original basename, canonicalizes uppercase, mixed-case, and omitted modes to `verify`, and
-rejects unsupported run modes before they can create a divergent run ID.
+- two overlapping runs cannot cross-copy their logs;
+- clipboard failure produces truthful degraded/strict behavior;
+- clipboard readback mismatch is detected;
+- `--exec` preserves spaces, `$` and semicolon bytes as arguments;
+- first-failure context survives a long trailing log;
+- `cg-lane.sh run-file` reaches the canonical driver and exact `$CG_OUTPUT_DIR/runs/<run_id>/run.log`.
 
-`verify/verify-cgrun-noninteractive-stdin.sh` runs an input-reading fixture through the real
-native core and requires it to receive EOF within a bounded time. It also requires the
-`AUTOCLIP_V95_STDIN_CLOSED` marker, `/dev/null` launch binding and
-`stdin_mode=dev-null` runtime evidence.
+`maintenance/verify-installed-cg-runtime.sh` remains the authority for a live installed runtime. Repository merge alone is not installed-runtime evidence; live acceptance still requires:
 
-`verify/verify-native-cg-shell-guard.sh` checks first application, backup creation, interactive
-file resolution, idempotent reapplication, and repair after a simulated legacy `.bashrc`
-restore.
-
-`verify/verify-termux-toolbox.sh` checks syntax without changing executable bits, includes the
-noninteractive stdin regression, and emits `PASS verifier_worktree_immutable` only when its
-complete run leaves Git status unchanged.
-
-`maintenance/verify-installed-cg-runtime.sh` checks syntax, executable state, markers, SHA-256
-parity, guard uniqueness and final position, interactive file resolution, and a real installed
-core stdin-EOF probe for the wrapper, both native cores, compatibility shims, lane runtime,
-`cg-run-file`, and `cg-handoff`.
+```text
+RESULT: CG_INSTALLED_RUNTIME_VERIFY_DONE outcome=success workflow_exit_code=0
+```
