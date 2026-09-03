@@ -13,6 +13,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 | Clipboard delivery can fail silently | AutoCopy records separate helper/clipboard/handoff exit codes and can hash-read back the Android clipboard | Successful payload execution is not confused with successful handoff |
 | Shell artifacts can be malformed | `cglint` blocks parser and ShellCheck warning/error failures, reports `shfmt` formatting drift, and can enforce style with `--strict` | Safety-relevant script failures stop before execution |
 | Script handoffs are fragile on mobile | `cg-handoff` verifies the downloaded artifact and stages it safely before `cg-run-file` | Short paste commands replace large inline shell payloads |
+| Android/shared-storage download is unavailable | When an installed `cgbootstrap` exposes the optional source-rescue contract, `cg-handoff` can obtain a missing exact hash-bound artifact from that trusted provider; standalone installs still fail closed | A broken Android download path does not have to block an already-authorized diagnostic handoff |
 | Nested verification overwrites the Android clipboard | The outermost `cgrun` owns final AutoCopy; nested `cgrun`/`cg-handoff` runs use a clipboard sink | Intermediate checks no longer replace the result you need |
 | Runtime/package state is uncertain | `cgdoctor` checks the installed toolbox and Termux environment | Environment problems are separated from task failures |
 | Failure logs are too large | `cgfail` provides bounded first-failure triage; `cgrun` now also embeds first-failure context automatically | Diagnosis stays compact and useful |
@@ -28,7 +29,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 | `cclear` | Clear noisy terminal context before a run |
 | `cgrun` | Run a command with exact-run logs, Receipt v2, semantic exit metadata and final AutoCopy |
 | `cgtail` | Return a bounded tail; internal callers can bind it to an exact log and request a diagnostic envelope |
-| `cg-handoff` | Verify and stage a downloaded shell artifact, run the default `cglint` gate, then delegate to `cg-run-file` |
+| `cg-handoff` | Verify and stage a downloaded shell artifact, optionally use a trusted `cgbootstrap` source-rescue provider when that source is missing, run the default `cglint` gate, then delegate to `cg-run-file` |
 | `cg-run-file` | Execute a full script artifact through the repository-owned lane/run contract |
 | `cg-lane.sh` | Lane state/status/tail utility; its `run-file` command delegates to the canonical run-file driver |
 | `cglint` | Read-only shell validation: parser and ShellCheck warning/error failures block; `shfmt` drift warns in default mode; `--strict` also blocks formatting and info/style findings |
@@ -48,6 +49,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 - **Two explicit input modes:** `cgrun --shell '<shell program>'` performs intentional shell parsing; `cgrun --exec command arg...` preserves argv boundaries. The run-file driver uses `--exec`.
 - **One run-file engine:** `cg-lane.sh run-file` delegates to `cg-run-file-driver-v1`; it no longer carries a second independent execution implementation.
 - **Pre-execution lint gate:** `cg-handoff` runs production-default `cglint` before the artifact can reach `cg-run-file`.
+- **Optional source rescue:** only when the normal source is missing or empty, `cg-handoff` may call an installed `cgbootstrap source-rescue` provider. The returned basename and SHA-256 must exactly match the requested handoff, the provider marker must be unique and well-formed, and the rescued file is independently rehashed before use. Missing/malformed providers remain a normal fail-closed `source_missing`/`source_empty` result.
 - **Noninteractive execution:** workflow payload stdin is bound to `/dev/null`, so accidental prompts receive EOF instead of hanging a run.
 - **TTY tail drain:** `cg-handoff` drains delayed interactive terminal input before returning control to the parent shell.
 - **Bundle handoff:** verified ZIP bundle handoff is supported for multi-artifact deliveries.
@@ -124,7 +126,7 @@ For a downloaded full shell artifact, prefer the short handoff path:
 cg-handoff pixel_local__example.sh <expected-sha256>
 ```
 
-`cg-handoff` verifies SHA-256, stages the artifact safely, runs production-default `cglint`, then delegates to `cg-run-file`. Multi-artifact deliveries use verified bundle handoff.
+`cg-handoff` verifies SHA-256, stages the artifact safely, runs production-default `cglint`, then delegates to `cg-run-file`. Multi-artifact deliveries use verified bundle handoff. If the source file is missing and an installed `cgbootstrap` implements the optional source-rescue contract, the same command can use that trusted provider; without such a provider, the handoff still fails closed rather than fetching arbitrary content itself.
 
 Useful diagnostics:
 
