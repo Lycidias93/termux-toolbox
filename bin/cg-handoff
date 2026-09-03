@@ -257,6 +257,49 @@ prepare_bundle_entrypoint() {
 	BUNDLE_ENTRYPOINT="$extract_dir/$entrypoint"
 }
 
+# CG_HANDOFF_SOURCE_RESCUE_V1
+try_source_rescue() {
+	local output rc marker_count marker rescue_root rescue_basename rescue_sha rescued_real rescue_root_real
+	[[ "$source_arg" != /* ]] || return 1
+	case "$source_arg" in
+	pixel_local__*.sh | *.zip) ;;
+	*) return 1 ;;
+	esac
+	command -v cgbootstrap >/dev/null 2>&1 || return 1
+
+	set +e
+	output="$(cgbootstrap source-rescue "$source_arg" "$expected_sha" 2>&1)"
+	rc=$?
+	set -e
+	if [[ -n "$output" ]]; then
+		printf '%s\n' "$output"
+		printf '%s\n' "$output" >>"$PREFLIGHT_LOG" 2>/dev/null || true
+	fi
+	((rc == 0)) || return 1
+	marker_count="$(printf '%s\n' "$output" | grep -Fc 'RESULT: TERMUX_BOOTSTRAP_SOURCE_RESCUE_DONE ')"
+	[[ "$marker_count" == 1 ]] || return 1
+	marker="$(printf '%s\n' "$output" | grep -F 'RESULT: TERMUX_BOOTSTRAP_SOURCE_RESCUE_DONE ' | head -n 1)"
+	[[ "$marker" == *' state=pass '* && "$marker" == *' workflow_exit_code=0' ]] || return 1
+	rescue_root="$(printf '%s\n' "$marker" | sed -n 's/.* source_rescue_root=\([^ ]*\).*/\1/p')"
+	rescue_basename="$(printf '%s\n' "$marker" | sed -n 's/.* basename=\([^ ]*\).*/\1/p')"
+	rescue_sha="$(printf '%s\n' "$marker" | sed -n 's/.* sha256=\([0-9a-f][0-9a-f]*\).*/\1/p')"
+	[[ "$rescue_root" =~ ^/[A-Za-z0-9._/-]+$ && "$rescue_root" != *'/../'* && "$rescue_root" != *'/..' ]] || return 1
+	[[ "$rescue_basename" == "$source_arg" && "$rescue_sha" == "$expected_sha" ]] || return 1
+	[[ -f "$rescue_root/$source_arg" && -s "$rescue_root/$source_arg" ]] || return 1
+	[[ "$(sha256sum "$rescue_root/$source_arg" | awk '{print $1}')" == "$expected_sha" ]] || return 1
+	rescue_root_real="$(readlink -f "$rescue_root" 2>/dev/null || true)"
+	rescued_real="$(readlink -f "$rescue_root/$source_arg" 2>/dev/null || true)"
+	[[ -n "$rescue_root_real" && -n "$rescued_real" ]] || return 1
+	case "$rescued_real" in
+	"$rescue_root_real"/*) ;;
+	*) return 1 ;;
+	esac
+	DOWNLOAD_ROOT="$rescue_root_real"
+	source_path="$rescued_real"
+	printf 'CG_HANDOFF_SOURCE_RESCUE_V1 state=pass provider=cgbootstrap basename=%s sha256=%s\n' "$source_arg" "$expected_sha"
+	return 0
+}
+
 source_arg="${1:-}"
 expected_sha="${2:-}"
 [[ -n "$source_arg" && -n "$expected_sha" && "$#" -eq 2 ]] || {
@@ -270,6 +313,12 @@ case "$source_arg" in
 *) source_path="$DOWNLOAD_ROOT/$source_arg" ;;
 esac
 
+if [[ ! -f "$source_path" || ! -s "$source_path" ]]; then
+	if ! try_source_rescue; then
+		[[ -f "$source_path" ]] || fail source_missing
+		fail source_empty
+	fi
+fi
 [[ -f "$source_path" ]] || fail source_missing
 [[ -s "$source_path" ]] || fail source_empty
 source_real="$(readlink -f "$source_path" 2>/dev/null || true)"
