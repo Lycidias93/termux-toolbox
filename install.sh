@@ -7,6 +7,7 @@ BIN_DIR="$PREFIX_DIR/bin"
 SHELL_GUARD="$ROOT/maintenance/ensure-native-cg-shell-guard.sh"
 RUNTIME_VERIFY="$ROOT/maintenance/verify-installed-cg-runtime.sh"
 TOOLKIT_VERIFY="$ROOT/verify/verify-toolkit-vnext.sh"
+SOURCE_RESCUE_VERIFY="$ROOT/maintenance/verify-cg-handoff-source-rescue-v1.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$1"
@@ -34,13 +35,15 @@ do
   bash -n "$source_file" || fail "runtime_source_syntax path=$source_file"
 done
 
-for support_script in "$SHELL_GUARD" "$RUNTIME_VERIFY" "$TOOLKIT_VERIFY"; do
+for support_script in "$SHELL_GUARD" "$RUNTIME_VERIFY" "$TOOLKIT_VERIFY" "$SOURCE_RESCUE_VERIFY"; do
   [[ -s "$support_script" ]] || fail "support_script_missing path=$support_script"
   bash -n "$support_script" || fail "support_script_syntax path=$support_script"
 done
 
 TMPDIR="${TMPDIR:-$PREFIX_DIR/tmp}" bash "$TOOLKIT_VERIFY" \
   || fail "toolkit_vnext_fixture_failed"
+TMPDIR="${TMPDIR:-$PREFIX_DIR/tmp}" CG_HANDOFF_PATH="$ROOT/bin/cg-handoff" bash "$SOURCE_RESCUE_VERIFY" \
+  || fail "cg_handoff_source_rescue_source_fixture_failed"
 
 mkdir -p "$BIN_DIR"
 for f in "$ROOT"/bin/*; do
@@ -50,4 +53,6 @@ done
 
 PREFIX="$PREFIX_DIR" bash "$SHELL_GUARD"
 PREFIX="$PREFIX_DIR" TERMUX_TOOLBOX_REPO="$ROOT" bash "$RUNTIME_VERIFY"
+TMPDIR="${TMPDIR:-$PREFIX_DIR/tmp}" CG_HANDOFF_PATH="$BIN_DIR/cg-handoff" bash "$SOURCE_RESCUE_VERIFY" \
+  || fail "cg_handoff_source_rescue_installed_fixture_failed"
 printf 'RESULT: TERMUX_TOOLBOX_INSTALL_DONE outcome=success workflow_exit_code=0\n'
