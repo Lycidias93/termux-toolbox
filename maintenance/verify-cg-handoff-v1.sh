@@ -116,6 +116,27 @@ printf '%s\n' "$output" | grep -Fq 'MARKER:RESULT: FIXTURE_PASS' || fail expecte
 
 printf "%s\n" "$output" | grep -Fq "CG_HANDOFF_CGLINT_GATE_V1 state=pass mode=default" || fail cglint_gate_pass_marker_missing
 
+
+variant="$WORK/Download/pixel_local__fixture.txt"
+cp "$artifact" "$variant"
+rm -f "$artifact"
+variant_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-variant" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" pixel_local__fixture.sh "$sha")" || fail extension_variant_canonical_launcher_failed
+printf '%s\n' "$variant_output" | grep -Fq 'CG_HANDOFF_SOURCE_RESOLVED' || fail extension_variant_resolution_marker_missing
+printf '%s\n' "$variant_output" | grep -Fq 'actual='"$variant" || fail extension_variant_actual_path_missing
+printf '%s\n' "$variant_output" | grep -Fq 'RUNFILE:' || fail extension_variant_run_file_missing
+variant_arg_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-variant-arg" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" pixel_local__fixture.txt "$sha")" || fail extension_variant_actual_launcher_failed
+printf '%s\n' "$variant_arg_output" | grep -Fq 'RUNFILE:' || fail extension_variant_actual_launcher_run_missing
+cp "$variant" "$WORK/Download/pixel_local__fixture.bin"
+set +e
+ambiguous_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-ambiguous" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" pixel_local__fixture.sh "$sha" 2>&1)"
+ambiguous_rc=$?
+set -e
+[[ "$ambiguous_rc" -eq 2 ]] || fail extension_variant_ambiguity_rc_invalid
+printf '%s\n' "$ambiguous_output" | grep -Fq 'reason=source_variant_ambiguous' || fail extension_variant_ambiguity_reason_missing
+rm -f "$WORK/Download/pixel_local__fixture.bin"
+artifact="$variant"
+printf '%s\n' 'PASS extension_neutral_script_resolution'
+
 write_fail_cglint
 set +e
 lint_output="$(PATH="$WORK/bin:$PATH" CG_HANDOFF_DOWNLOAD_ROOT="$WORK/Download" CG_OUTPUT_DIR="$WORK/output-lint-fail" TMPDIR="$WORK/tmp" CG_HANDOFF_TTY_DRAIN=0 bash "$HANDOFF" "$(basename "$artifact")" "$sha" 2>&1)"

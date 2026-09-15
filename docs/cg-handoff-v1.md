@@ -1,6 +1,6 @@
 # `cg-handoff` v1
 
-`cg-handoff` is the short, metadata-driven front end for ChatGPT-provided `pixel_local__*.sh` artifacts.
+`cg-handoff` is the short, metadata-driven front end for ChatGPT-provided `pixel_local__*` script artifacts. The final download extension is transport decoration and is not part of the logical script identity.
 
 It exists to remove long interactive paste launchers from the normal Termux workflow. Long serialized shell lines are hard to inspect on mobile and can leave Bash at a secondary `>` prompt when a client paste includes a partial shell token or formatting delimiter.
 
@@ -36,7 +36,7 @@ The outer SHA-256 remains supplied by the assistant response and is verified bef
 
 `cg-handoff` performs the previously repeated launcher sequence in one installed, repository-owned runtime:
 
-1. require a regular non-empty `pixel_local__*.sh` under the Download root;
+1. resolve a regular non-empty `pixel_local__*` file under the Download root by logical basename while ignoring the final extension; the full SHA-256 must select exactly one candidate;
 2. verify the externally bound SHA-256;
 3. validate one metadata block and all lane/scope/host/route/secret/mode fields;
 4. run `cgprep`, `cclear`, `cgcurrent`, then the metadata-bound `cguse`;

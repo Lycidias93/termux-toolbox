@@ -19,6 +19,7 @@ bundle_work=""
 mkdir -p "$OUTPUT_ROOT" "$TMP_ROOT" 2>/dev/null || true
 : >"$PREFLIGHT_LOG" 2>/dev/null || true
 
+# CG_HANDOFF_EXTENSION_NEUTRAL_SOURCE_V1
 # CG_HANDOFF_EARLY_AUTOCOPY_V1
 write_failure_autocopy() {
 	local reason="$1" copy_mode="full" clipboard_rc=127 clip_command
@@ -96,7 +97,7 @@ fail() {
 }
 
 usage() {
-	printf 'Usage: cg-handoff <pixel_local__artifact.sh|bundle.zip|absolute-download-path> <sha256>\n' >&2
+	printf 'Usage: cg-handoff <pixel_local__artifact[.any-extension]|bundle.zip|absolute-download-path> <sha256>\n' >&2
 }
 
 field() {
@@ -266,14 +267,63 @@ expected_sha="${2:-}"
 [[ "$expected_sha" =~ ^[0-9a-f]{64}$ ]] || fail expected_sha_invalid
 
 case "$source_arg" in
-/*) source_path="$source_arg" ;;
-*) source_path="$DOWNLOAD_ROOT/$source_arg" ;;
+/*) requested_path="$source_arg" ;;
+*) requested_path="$DOWNLOAD_ROOT/$source_arg" ;;
 esac
 
-[[ -f "$source_path" ]] || fail source_missing
-[[ -s "$source_path" ]] || fail source_empty
-source_real="$(readlink -f "$source_path" 2>/dev/null || true)"
+requested_base="$(basename "$requested_path")"
 download_real="$(readlink -f "$DOWNLOAD_ROOT" 2>/dev/null || true)"
+requested_dir="$(dirname "$requested_path")"
+requested_dir_real="$(readlink -f "$requested_dir" 2>/dev/null || true)"
+[[ -n "$download_real" && -n "$requested_dir_real" ]] || fail source_realpath_failed
+case "$requested_dir_real" in
+"$download_real" | "$download_real"/*) ;;
+*) fail source_outside_download_root ;;
+esac
+
+case "$requested_base" in
+target-* | targets-*) fail remote_target_not_supported ;;
+*.zip)
+	artifact_kind=bundle
+	source_path="$requested_path"
+	[[ -f "$source_path" ]] || fail source_missing
+	[[ -s "$source_path" ]] || fail source_empty
+	;;
+pixel_local__*)
+	artifact_kind=script
+	logical_base="$requested_base"
+	if [[ "$logical_base" == *.* ]]; then
+		logical_base="${logical_base%.*}"
+	fi
+	[[ "$logical_base" =~ ^pixel_local__[A-Za-z0-9._+-]+$ ]] || fail unsupported_artifact_basename
+	matching_source=""
+	matching_count=0
+	shopt -s nullglob
+	for candidate in "$requested_dir/$logical_base" "$requested_dir/$logical_base".* "$requested_path".*; do
+		[[ -f "$candidate" && -s "$candidate" ]] || continue
+		candidate_sha="$(sha256sum "$candidate" | awk '{print $1}')"
+		[[ "$candidate_sha" == "$expected_sha" ]] || continue
+		[[ "$candidate" == "$matching_source" ]] && continue
+		matching_source="$candidate"
+		matching_count=$((matching_count + 1))
+	done
+	shopt -u nullglob
+
+	if ((matching_count == 0)); then
+		if [[ -f "$requested_path" ]] || compgen -G "$requested_dir/$logical_base.*" >/dev/null || compgen -G "$requested_path.*" >/dev/null; then
+			fail source_sha_mismatch
+		fi
+		fail source_missing
+	fi
+	((matching_count == 1)) || fail source_variant_ambiguous
+	source_path="$matching_source"
+	canonical_script_basename="$logical_base.sh"
+	printf 'CG_HANDOFF_SOURCE_RESOLVED requested=%s actual=%s logical=%s extension_ignored=yes\n' "$requested_path" "$source_path" "$logical_base"
+	;;
+*) fail unsupported_artifact_basename ;;
+esac
+
+source_real="$(readlink -f "$source_path" 2>/dev/null || true)"
 [[ -n "$source_real" && -n "$download_real" ]] || fail source_realpath_failed
 case "$source_real" in
 "$download_real"/*) ;;
@@ -281,13 +331,6 @@ case "$source_real" in
 esac
 
 basename="$(basename "$source_real")"
-case "$basename" in
-target-* | targets-*) fail remote_target_not_supported ;;
-pixel_local__*.sh) artifact_kind=script ;;
-*.zip) artifact_kind=bundle ;;
-*) fail unsupported_artifact_basename ;;
-esac
-
 actual_sha="$(sha256sum "$source_real" | awk '{print $1}')"
 [[ "$actual_sha" == "$expected_sha" ]] || fail source_sha_mismatch
 
@@ -345,7 +388,7 @@ run_preflight cguse "$lane" "$scope" "$host" "$route_class" "$secret_class" || f
 
 if [[ "$artifact_kind" == script ]]; then
 	mkdir -p "$TMP_ROOT"
-	dst="$TMP_ROOT/$basename"
+	dst="$TMP_ROOT/${canonical_script_basename:-$basename}"
 	tmp="$dst.stage.$$"
 	rm -f -- "$tmp"
 	install -m 0700 "$artifact_source" "$tmp" || fail stage_install_failed

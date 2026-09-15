@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `cg-handoff` now resolves `pixel_local__*` downloads by logical basename with an extension-neutral final suffix, while retaining exact SHA-256 selection and fail-closed ambiguity handling. This tolerates clients that save a `.sh` handoff as `.txt` or another extension.
+
 - Added `cglint` for read-only shell artifact validation with parser checks, ShellCheck and `shfmt -d`.
 - `cg-handoff` now runs the production-default `cglint` gate on the private staged shell entrypoint before `cg-run-file`: parser failures, ShellCheck error/warning findings and actual `shfmt` execution errors remain hard stops, while formatting-only `shfmt` drift is warning-only in default mode; `cglint --strict` still blocks formatting drift plus ShellCheck info/style findings.
 - Fixed toolbox verification so genuine formatting-only `cglint` drift is recognized deterministically and no longer blocks installation; real `shfmt` errors remain hard failures.
