@@ -124,6 +124,8 @@ For a downloaded full shell artifact, prefer the short handoff path:
 cg-handoff pixel_local__example.sh <expected-sha256>
 ```
 
+For `pixel_local__*` scripts, the final download extension is extension-neutral: a client-renamed `.txt`, `.bin`, or other suffix is accepted when the logical basename matches and exactly one candidate matches the expected SHA-256.
+
 `cg-handoff` verifies SHA-256, stages the artifact safely, runs production-default `cglint`, then delegates to `cg-run-file`. Multi-artifact deliveries use verified bundle handoff.
 
 Useful diagnostics:
