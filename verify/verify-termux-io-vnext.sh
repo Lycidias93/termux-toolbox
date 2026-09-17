@@ -5,7 +5,10 @@ TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/termux-io-vnext.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 PREFIX_DIR="$TMP_ROOT/prefix"; HOME_DIR="$TMP_ROOT/home"; BIN_DIR="$PREFIX_DIR/bin"; OUT_DIR="$HOME_DIR/.chatgpt-output"; STATE_DIR="$HOME_DIR/.chatgpt-lanes"; TEST_TMP="$TMP_ROOT/tmp"
 mkdir -p "$BIN_DIR" "$OUT_DIR" "$STATE_DIR/lanes/lane-a" "$STATE_DIR/lanes/lane-b" "$TEST_TMP"
-for name in cgrun cgrun-core-v95 cgtail-core-v95 cg-run-file-driver-v1 cg-lane.sh; do install -m0755 "$ROOT/bin/$name" "$BIN_DIR/$name"; done
+for name in cgrun cgrun-core-v95 cgtail-core-v95 cg-run-file-driver-v1 cg-lane.sh; do
+  install -m0755 "$ROOT/bin/$name" "$BIN_DIR/$name"
+  sed -i '1s|^#!/data/data/com.termux/files/usr/bin/bash$|#!/usr/bin/env bash|' "$BIN_DIR/$name"
+done
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'cat >"$CG_TEST_CLIPBOARD"' >"$TMP_ROOT/clipboard-write.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'cat "$CG_TEST_CLIPBOARD"' >"$TMP_ROOT/clipboard-read.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" wrong' >"$TMP_ROOT/clipboard-wrong.sh"
