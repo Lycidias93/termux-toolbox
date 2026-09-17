@@ -1,3 +1,9 @@
+## 2026-09-17 - Native Termux shebangs for installed toolbox commands
+
+- Changed installed `bin/*` Bash entry points to the native Termux interpreter path so Android can execute `cgprep`, `cguse`, `cg-handoff`, and related commands directly.
+- Added an install-time fail-closed guard against reintroducing `/usr/bin/env` shebangs into installed runtime commands.
+- Kept portable shebang support for workflow artifacts handled through `cg-run-file` normalization.
+
 # Changelog
 
 ## Unreleased

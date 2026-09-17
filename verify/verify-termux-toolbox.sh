@@ -18,6 +18,18 @@ echo "tmp_base=$TMP_BASE"
 echo
 
 fail=0
+echo "== native Termux runtime shebangs =="
+for runtime in "$ROOT"/bin/*; do
+  [[ -f "$runtime" ]] || continue
+  first="$(sed -n '1p' "$runtime")"
+  if [[ "$first" == '#!/data/data/com.termux/files/usr/bin/bash' ]]; then
+    echo "PASS native_shebang file=${runtime#$ROOT/}"
+  else
+    echo "FAIL native_shebang file=${runtime#$ROOT/} got=$first"
+    fail=1
+  fi
+done
+echo
 inside_git=no
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   inside_git=yes

@@ -45,6 +45,8 @@ TMPDIR="${TMPDIR:-$PREFIX_DIR/tmp}" bash "$TOOLKIT_VERIFY" \
 mkdir -p "$BIN_DIR"
 for f in "$ROOT"/bin/*; do
   [[ -f "$f" ]] || continue
+  [[ "$(sed -n '1p' "$f")" == '#!/data/data/com.termux/files/usr/bin/bash' ]] \
+    || fail "runtime_source_native_shebang_required path=$f"
   install -m 0755 "$f" "$BIN_DIR/$(basename "$f")"
 done
 
