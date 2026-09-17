@@ -14,6 +14,11 @@ fail() {
 	exit 1
 }
 
+# TERMUX_RUNTIME_FIXTURE_SHEBANG_V1
+fixture_bash="$(type -P bash || true)"
+[[ -n "$fixture_bash" && -x "$fixture_bash" ]] || fail fixture_bash_unavailable
+fixture_shebang="#!$fixture_bash"
+
 mkdir -p "$WORK/Download" "$WORK/bin" "$WORK/tmp"
 artifact="$WORK/Download/pixel_local__fixture.sh"
 {
@@ -61,7 +66,7 @@ printf '%s\n' 'PASS canonical_driver_route_classes'
 
 for name in cgprep cclear cgcurrent; do
 	{
-		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' "$fixture_shebang"
 		printf '%s\n' 'exit 0'
 	} >"$WORK/bin/$name"
 	chmod 0700 "$WORK/bin/$name"
@@ -69,7 +74,7 @@ done
 
 write_success_cguse() {
 	{
-		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' "$fixture_shebang"
 		printf '%s\n' 'printf "CGUSE:%s\n" "$*"'
 	} >"$WORK/bin/cguse"
 	chmod 0700 "$WORK/bin/cguse"
@@ -77,7 +82,7 @@ write_success_cguse() {
 
 write_success_run_file() {
 	{
-		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' "$fixture_shebang"
 		printf '%s\n' 'printf "RUNFILE:%s\n" "$*"'
 		printf '%s\n' 'printf "MARKER:%s\n" "${CGFLOW_EXPECTED_MARKER:-}"'
 	} >"$WORK/bin/cg-run-file"
@@ -86,7 +91,7 @@ write_success_run_file() {
 
 write_success_cglint() {
 	{
-		printf "%s\n" "#!/usr/bin/env bash"
+		printf "%s\n" "$fixture_shebang"
 		printf "%s\n" "printf \"RESULT: CGLINT_DONE checked=1 workflow_exit_code=0 mode=default\\n\""
 		printf "%s\n" "exit 0"
 	} >"$WORK/bin/cglint"
@@ -95,7 +100,7 @@ write_success_cglint() {
 
 write_fail_cglint() {
 	{
-		printf "%s\n" "#!/usr/bin/env bash"
+		printf "%s\n" "$fixture_shebang"
 		printf "%s\n" "printf \"RESULT: CGLINT_FAIL checked=1 workflow_exit_code=1 mode=default\\n\" >&2"
 		printf "%s\n" "exit 1"
 	} >"$WORK/bin/cglint"
@@ -167,7 +172,7 @@ printf '%s\n' "$late_output" | grep -Eq 'CG_HANDOFF_TTY_DRAIN bytes=[3-9][0-9]* 
 printf '%s\n' 'PASS delayed_tty_tail_drain'
 
 {
-	printf '%s\n' '#!/usr/bin/env bash'
+	printf '%s\n' "$fixture_shebang"
 	printf '%s\n' 'exit 7'
 } >"$WORK/bin/cg-run-file"
 chmod 0700 "$WORK/bin/cg-run-file"
@@ -187,12 +192,12 @@ printf '%s\n' "$bad_output" | grep -Fq 'reason=source_sha_mismatch' || fail bad_
 
 clipboard_capture="$WORK/clipboard-capture.log"
 {
-	printf '%s\n' '#!/usr/bin/env bash'
+	printf '%s\n' "$fixture_shebang"
 	printf 'cat > %q\n' "$clipboard_capture"
 } >"$WORK/bin/clipboard-sink"
 chmod 0700 "$WORK/bin/clipboard-sink"
 {
-	printf '%s\n' '#!/usr/bin/env bash'
+	printf '%s\n' "$fixture_shebang"
 	printf '%s\n' 'printf "FAIL: fixture_cguse_failure\n" >&2'
 	printf '%s\n' 'exit 23'
 } >"$WORK/bin/cguse"

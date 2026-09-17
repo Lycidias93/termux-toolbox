@@ -8,14 +8,30 @@ WORK="$(mktemp -d "$TMP_ROOT/cg-handoff-bundle-fixture.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM HUP
 fail() { printf 'RESULT: CG_HANDOFF_BUNDLE_FIXTURE_STOP outcome=stop reason=%s workflow_exit_code=1\n' "$1"; exit 1; }
 
+# TERMUX_RUNTIME_FIXTURE_SHEBANG_V1
+fixture_bash="$(type -P bash || true)"
+[[ -n "$fixture_bash" && -x "$fixture_bash" ]] || fail fixture_bash_unavailable
+fixture_shebang="#!$fixture_bash"
+
 mkdir -p "$WORK/Download" "$WORK/bin" "$WORK/tmp" "$WORK/bundle"
-for name in cgprep cclear cgcurrent; do printf '#!/usr/bin/env bash\nexit 0\n' >"$WORK/bin/$name"; chmod 0700 "$WORK/bin/$name"; done
-printf '#!/usr/bin/env bash\nprintf '\''CGUSE:%%s\\n'\'' "$*"\n' >"$WORK/bin/cguse"; chmod 0700 "$WORK/bin/cguse"
-printf '#!/usr/bin/env bash\nprintf '\''RUNFILE:%%s\\n'\'' "$*"\nprintf '\''MARKER:%%s\\n'\'' "${CGFLOW_EXPECTED_MARKER:-}"\nbash "$1"\n' >"$WORK/bin/cg-run-file"; chmod 0700 "$WORK/bin/cg-run-file"
+for name in cgprep cclear cgcurrent; do
+	printf '%s\n%s\n' "$fixture_shebang" 'exit 0' >"$WORK/bin/$name"
+	chmod 0700 "$WORK/bin/$name"
+done
+printf '%s\n%s\n' "$fixture_shebang" 'printf "CGUSE:%s\n" "$*"' >"$WORK/bin/cguse"
+chmod 0700 "$WORK/bin/cguse"
+{
+	printf '%s\n' "$fixture_shebang"
+	printf '%s\n' 'printf "RUNFILE:%s\n" "$*"'
+	printf '%s\n' 'printf "MARKER:%s\n" "${CGFLOW_EXPECTED_MARKER:-}"'
+	printf '%s\n' 'bash "$1"'
+} >"$WORK/bin/cg-run-file"
+chmod 0700 "$WORK/bin/cg-run-file"
 # cg-handoff owns a mandatory default cglint gate. The bundle fixture isolates
 # bundle semantics, so provide a deterministic passing cglint dependency rather
 # than accidentally depending on the developer/CI host PATH.
-printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'printf "%s\n" "RESULT: CGLINT_DONE checked=$# workflow_exit_code=0 mode=default"' >"$WORK/bin/cglint"; chmod 0700 "$WORK/bin/cglint"
+printf '%s\n' "$fixture_shebang" 'set -euo pipefail' 'printf "%s\n" "RESULT: CGLINT_DONE checked=$# workflow_exit_code=0 mode=default"' >"$WORK/bin/cglint"
+chmod 0700 "$WORK/bin/cglint"
 
 entry="$WORK/bundle/pixel_local__bundle_fixture.sh"
 {

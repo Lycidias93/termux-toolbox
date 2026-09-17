@@ -36,6 +36,22 @@ for wrapper in cgcurrent cgtail-lane; do
   grep -Fq 'exec cg-lane.sh' "$path" || { echo "FAIL helper_wrapper_delegate name=$wrapper"; fail=1; }
 done
 echo
+for fixture in maintenance/verify-cg-handoff-v1.sh maintenance/verify-cg-handoff-bundle-v1.sh; do
+  if grep -Fq 'TERMUX_RUNTIME_FIXTURE_SHEBANG_V1' "$fixture"; then
+    echo "PASS runtime_fixture_shebang_marker file=$fixture"
+  else
+    echo "FAIL runtime_fixture_shebang_marker_missing file=$fixture"
+    fail=1
+  fi
+  portable_count="$(grep -Fc '#!/usr/bin/env bash' "$fixture")"
+  if [[ "$portable_count" == "2" ]]; then
+    echo "PASS runtime_fixture_portable_shebang_boundary file=$fixture count=$portable_count"
+  else
+    echo "FAIL runtime_fixture_portable_shebang_boundary file=$fixture expected=2 got=$portable_count"
+    fail=1
+  fi
+done
+echo
 inside_git=no
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   inside_git=yes
