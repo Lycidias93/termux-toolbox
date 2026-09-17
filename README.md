@@ -31,6 +31,9 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 | `cg-handoff` | Verify and stage a downloaded shell artifact, run the default `cglint` gate, then delegate to `cg-run-file` |
 | `cg-run-file` | Execute a full script artifact through the repository-owned lane/run contract |
 | `cg-lane.sh` | Lane state/status/tail utility; its `run-file` command delegates to the canonical run-file driver |
+| `cgcurrent` | Show the currently bound lane through `cg-lane.sh current` |
+| `cguse` | Bind lane/scope/host/route/secret metadata through `cg-lane.sh use` |
+| `cgtail-lane` | Return the exact bound lane tail through `cg-lane.sh tail` |
 | `cglint` | Read-only shell validation: parser and ShellCheck warning/error failures block; `shfmt` drift warns in default mode; `--strict` also blocks formatting and info/style findings |
 | `cgdoctor` | Check Termux/toolbox runtime health and required command availability |
 | `cgfind` | Fast bounded literal search over local files |

@@ -1,3 +1,8 @@
+## 2026-09-17 - Workflowfit helper wrappers are source-owned
+
+- Added native-Termux `cgcurrent` and `cgtail-lane` entry points so every helper required by `cg-handoff` is reproducible from the toolbox source.
+- Keeps lane selection and tail behavior delegated to the single `cg-lane.sh` implementation.
+
 ## 2026-09-17 - Native Termux shebangs for installed toolbox commands
 
 - Changed installed `bin/*` Bash entry points to the native Termux interpreter path so Android can execute `cgprep`, `cguse`, `cg-handoff`, and related commands directly.

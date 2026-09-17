@@ -30,6 +30,12 @@ for runtime in "$ROOT"/bin/*; do
   fi
 done
 echo
+for wrapper in cgcurrent cgtail-lane; do
+  path="$ROOT/bin/$wrapper"
+  [[ -x "$path" ]] || { echo "FAIL helper_wrapper_executable name=$wrapper"; fail=1; continue; }
+  grep -Fq 'exec cg-lane.sh' "$path" || { echo "FAIL helper_wrapper_delegate name=$wrapper"; fail=1; }
+done
+echo
 inside_git=no
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   inside_git=yes
