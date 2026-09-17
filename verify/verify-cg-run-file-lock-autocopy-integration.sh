@@ -8,7 +8,10 @@ HOST_LD_PRELOAD="${LD_PRELOAD:-}"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 PREFIX_DIR="$TMP_ROOT/prefix"; HOME_DIR="$TMP_ROOT/home"; BIN_DIR="$PREFIX_DIR/bin"; STATE_DIR="$HOME_DIR/.chatgpt-lanes"; OUT_DIR="$HOME_DIR/.chatgpt-output"; TEST_TMP="$TMP_ROOT/tmp"; CLIPBOARD="$TMP_ROOT/clipboard.txt"; OUTPUT="$TMP_ROOT/run.out"
 mkdir -p "$BIN_DIR" "$STATE_DIR/lanes/chat-lock" "$STATE_DIR/locks" "$OUT_DIR" "$TEST_TMP"
-for name in cgrun cgrun-core-v95 cgtail-core-v95 cg-run-file-driver-v1 cg-run-file; do install -m0755 "$ROOT/bin/$name" "$BIN_DIR/$name"; done
+for name in cgrun cgrun-core-v95 cgtail-core-v95 cg-run-file-driver-v1 cg-run-file; do
+  install -m0755 "$ROOT/bin/$name" "$BIN_DIR/$name"
+  sed -i '1s|^#!/data/data/com.termux/files/usr/bin/bash$|#!/usr/bin/env bash|' "$BIN_DIR/$name"
+done
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'cat > "$CG_TEST_CLIPBOARD"' >"$TMP_ROOT/clipboard-writer.sh"
 chmod 0755 "$TMP_ROOT/clipboard-writer.sh"
 printf '%s\n' chat-lock >"$STATE_DIR/current_lane"

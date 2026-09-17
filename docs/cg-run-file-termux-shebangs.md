@@ -7,12 +7,14 @@
 
 For native Termux paths, the wrapper creates a temporary executable copy below `TMPDIR`, replaces only the first line with the corresponding portable shebang, and then delegates to `cg-lane.sh run-file`. The source artifact is not modified.
 
-Generated Pixel-local controllers should prefer:
+Installed toolbox commands under `bin/` use the native Termux Bash shebang because Android does not provide `/usr/bin/env` for direct kernel execution. `install.sh` rejects a non-native shebang in these runtime entry points.
+
+Generated Pixel-local controllers transported through `cg-run-file` may still prefer:
 
 ```text
 #!/usr/bin/env bash
 ```
 
-The native paths remain accepted for compatibility with existing Termux-generated artifacts.
+`cg-run-file` normalizes supported controller shebangs inside a private temporary copy before execution, so this portable artifact form does not imply that installed `bin/*` commands may use `/usr/bin/env`.
 
 Regression coverage: `verify/verify-cg-run-file-termux-shebang.sh`.

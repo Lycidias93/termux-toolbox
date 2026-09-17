@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 printf "%s\n" "== copy window =="
 printf "%s\n" "Istblick Wurzelklar Workflowfit NoHeredoc Copyfit CgRunLog DynamicTail Dropvoll Verifygate Rollbackanker Hostblick Routeguard Geheimnull Geheimort Diffsauber Resultmarker Pushmerge"

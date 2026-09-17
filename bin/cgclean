@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 OUT="${CHATGPT_OUTPUT_DIR:-$HOME/.chatgpt-output}"
 MODE="${1:---dry-run}"
