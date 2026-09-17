@@ -1,3 +1,9 @@
+## 2026-09-17 - Runtime handoff fixtures use the active Bash interpreter
+
+- Fixed installed-runtime handoff fixtures so temporary executable helpers use the active Bash interpreter instead of a Linux-only `/usr/bin/env` shebang.
+- Prevents false `cgprep_failed` stops when the same verifier runs natively on Android/Termux.
+- Added a static regression guard that forbids portable generated helper shebangs in both handoff fixtures.
+
 ## 2026-09-17 - Workflowfit helper wrappers are source-owned
 
 - Added native-Termux `cgcurrent` and `cgtail-lane` entry points so every helper required by `cg-handoff` is reproducible from the toolbox source.
