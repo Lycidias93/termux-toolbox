@@ -1,6 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
+TERMUX_PREFIX="/data/data/com.termux/files/usr"
+if [[ -x "$TERMUX_PREFIX/bin/bash" ]]; then
+	export PREFIX="$TERMUX_PREFIX"
+	export TMPDIR="$TERMUX_PREFIX/tmp"
+	mkdir -p "$TMPDIR"
+fi
+
 script="${1:-}"
 mode="${2:-verify}"
 mode="$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')"
