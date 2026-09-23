@@ -19,6 +19,8 @@
 
 ## Unreleased
 
+- `cg-run-file` now normalizes `PREFIX` and `TMPDIR` to the native Termux paths when the native Termux Bash is present, preventing noninteractive launchers from inheriting an unset `PREFIX` or Linux-style `/tmp` while preserving non-Termux fixture behavior.
+
 - `cg-handoff` now resolves `pixel_local__*` downloads by logical basename with an extension-neutral final suffix, while retaining exact SHA-256 selection and fail-closed ambiguity handling. This tolerates clients that save a `.sh` handoff as `.txt` or another extension.
 
 - Added `cglint` for read-only shell artifact validation with parser checks, ShellCheck and `shfmt -d`.

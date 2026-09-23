@@ -9,6 +9,8 @@ For native Termux paths, the wrapper creates a temporary executable copy below `
 
 Installed toolbox commands under `bin/` use the native Termux Bash shebang because Android does not provide `/usr/bin/env` for direct kernel execution. `install.sh` rejects a non-native shebang in these runtime entry points.
 
+When the native Termux Bash exists, `cg-run-file` also normalizes `PREFIX` to `/data/data/com.termux/files/usr` and `TMPDIR` to `$PREFIX/tmp` before resolving the run-file driver. This protects noninteractive launchers that otherwise inherit an unset `PREFIX` or a Linux-style `/tmp`. Non-Termux hosts keep their incoming environment, so repository fixtures remain portable.
+
 Generated Pixel-local controllers transported through `cg-run-file` may still prefer:
 
 ```text
