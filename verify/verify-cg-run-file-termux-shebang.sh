@@ -10,6 +10,18 @@ FAKE_BIN="$TMP_ROOT/bin"
 CAPTURE="$TMP_ROOT/capture"
 mkdir -p "$FAKE_BIN" "$CAPTURE"
 
+for expected in \
+  'TERMUX_PREFIX="/data/data/com.termux/files/usr"' \
+  'if [[ -x "$TERMUX_PREFIX/bin/bash" ]]; then' \
+  'export PREFIX="$TERMUX_PREFIX"' \
+  'export TMPDIR="$TERMUX_PREFIX/tmp"'
+do
+  grep -Fq "$expected" "$WRAPPER" || {
+    printf 'FAIL termux_env_normalizer_contract missing=%s\n' "$expected"
+    exit 1
+  }
+done
+
 {
   printf '%s\n' '#!/usr/bin/env bash'
   printf '%s\n' 'set -euo pipefail'
@@ -137,4 +149,5 @@ printf '%s\n' 'PASS cg_run_file_mode_canonicalization'
 printf '%s\n' 'PASS cg_run_file_invalid_mode_rejected'
 printf '%s\n' 'PASS cg_run_file_python_syntax_guard'
 printf '%s\n' 'PASS cg_run_file_source_context_preserved'
+printf '%s\n' 'PASS cg_run_file_termux_env_normalizer_contract'
 printf '%s\n' 'RESULT: CG_RUN_FILE_TERMUX_SHEBANG_VERIFY_DONE outcome=success workflow_exit_code=0'
