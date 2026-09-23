@@ -52,6 +52,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 - **One run-file engine:** `cg-lane.sh run-file` delegates to `cg-run-file-driver-v1`; it no longer carries a second independent execution implementation.
 - **Pre-execution lint gate:** `cg-handoff` runs production-default `cglint` before the artifact can reach `cg-run-file`.
 - **Noninteractive execution:** workflow payload stdin is bound to `/dev/null`, so accidental prompts receive EOF instead of hanging a run.
+- **Native Termux environment:** `cg-run-file` rebinds `PREFIX` and `TMPDIR` to the canonical Termux paths when the native Termux runtime is present, so noninteractive launchers cannot strand temporary workflow state under Linux-style `/tmp`.
 - **TTY tail drain:** `cg-handoff` drains delayed interactive terminal input before returning control to the parent shell.
 - **Bundle handoff:** verified ZIP bundle handoff is supported for multi-artifact deliveries.
 - **Outermost-only AutoCopy:** only the outer `cgrun` owns the final Android clipboard write; nested runs preserve output without overwriting it.
