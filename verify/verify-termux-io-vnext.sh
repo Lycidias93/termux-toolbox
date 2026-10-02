@@ -58,6 +58,20 @@ grep -Fq 'clipboard_verify_state=readback_unavailable' "$TMP_ROOT/native-unavail
 grep -Fq 'clipboard_exit_code=0' "$TMP_ROOT/native-unavailable.out"
 grep -Fq 'RESULT: CGRUN_WORKFLOW_OK outcome=success' "$TMP_ROOT/native-unavailable.out"
 
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'shift' "case \"\${1##*/}\" in termux-clipboard-get) exit 124;; esac" "exec \"\$@\"" >"$BIN_DIR/timeout"
+chmod 0755 "$BIN_DIR/timeout"
+native_timeout_clip="$TMP_ROOT/native-timeout-clip"
+set +e
+runenv CG_LANE_ID=lane-a CG_RUN_ID=clip-native-timeout CG_NATIVE_CLIPBOARD="$native_timeout_clip" bash "$BIN_DIR/cgrun" --shell "printf '%s\n' 'RESULT: CMD_OK'" >"$TMP_ROOT/native-timeout.out" 2>&1
+native_timeout_rc=$?
+set -e
+[ "$native_timeout_rc" -eq 0 ]
+grep -Fq 'RESULT: CMD_OK' "$native_timeout_clip"
+grep -Fq 'clipboard_verify_state=readback_unavailable' "$TMP_ROOT/native-timeout.out"
+grep -Fq 'clipboard_exit_code=0' "$TMP_ROOT/native-timeout.out"
+grep -Fq 'RESULT: CGRUN_WORKFLOW_OK outcome=success' "$TMP_ROOT/native-timeout.out"
+rm -f "$BIN_DIR/timeout"
+
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'printf "argc=%s\\n" "$#"' 'i=0' 'for arg in "$@"; do i=$((i+1)); printf "arg%s=<%s>\\n" "$i" "$arg"; done' 'printf "%s\\n" "RESULT: ARGV_DONE"' >"$TMP_ROOT/argv.sh"
 chmod 0755 "$TMP_ROOT/argv.sh"
 clip_argv="$TMP_ROOT/clip-argv"
@@ -80,5 +94,5 @@ runenv CG_TEST_CLIPBOARD="$clip_driver" CGRUN_CLIPBOARD_COMMAND="$TMP_ROOT/clipb
 run_id="$(grep '^run_id=' "$TMP_ROOT/driver.out" | tail -n1 | cut -d= -f2-)"; [ -n "$run_id" ]; [ -f "$OUT_DIR/runs/$run_id/run.log" ]; [ "$(cat "$STATE_DIR/lanes/lane-a/latest.path")" = "$OUT_DIR/runs/$run_id/run.log" ]; grep -Fq 'RESULT: DRIVER_OK' "$OUT_DIR/runs/$run_id/run.log"
 
 printf '%s\n' 'PASS exact_run_binding_parallel' 'PASS clipboard_failure_semantics' 'PASS clipboard_readback_mismatch' 'PASS argv_exec_fidelity' 'PASS diagnostic_envelope_first_failure' 'PASS canonical_lane_driver_exact_log'
-printf '%s\n' 'PASS native_clipboard_readback_unavailable'
+printf '%s\n' 'PASS native_clipboard_readback_unavailable' 'PASS native_clipboard_readback_timeout_unavailable'
 printf '%s\n' 'RESULT: TERMUX_IO_VNEXT_VERIFY_DONE outcome=success workflow_exit_code=0'
