@@ -3,7 +3,7 @@
 # AUTOCLIP_V95_NATIVE_CORE_BINDING
 # AUTOCLIP_V95_EXACT_RUN_BINDING_V2
 # AUTOCLIP_V95_WORKFLOW_EXIT_SEMANTICS_V2
-# AUTOCLIP_V95_CLIPBOARD_READBACK_V1
+# AUTOCLIP_V95_CLIPBOARD_READBACK_V2
 set -uo pipefail
 
 PREFIX_DIR="${PREFIX:-/data/data/com.termux/files/usr}"
@@ -165,8 +165,12 @@ elif command -v termux-clipboard-set >/dev/null 2>&1 && [ -s "$COPY_SOURCE" ]; t
 		read_rc=$?
 		set -e
 		if [ "$read_rc" -eq 0 ]; then
+			if [ ! -s "$READBACK" ]; then
+				CLIPBOARD_VERIFY_STATE="readback_unavailable"
+			else
 			CLIPBOARD_READBACK_SHA="$(sha256sum "$READBACK" | awk '{print $1}')"
 			if [ "$CLIPBOARD_READBACK_SHA" = "$CLIPBOARD_EXPECTED_SHA" ]; then CLIPBOARD_VERIFY_STATE="match"; else CLIPBOARD_VERIFY_STATE="mismatch"; CLIPBOARD_EXIT_CODE=74; fi
+			fi
 		else CLIPBOARD_VERIFY_STATE="readback_failed"; CLIPBOARD_EXIT_CODE=74
 		fi
 	elif [ "$CLIPBOARD_EXIT_CODE" -eq 0 ]; then CLIPBOARD_VERIFY_STATE="readback_unavailable"

@@ -13,6 +13,9 @@ printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'cat >"$CG_TEST_CLIPBOAR
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'cat "$CG_TEST_CLIPBOARD"' >"$TMP_ROOT/clipboard-read.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" wrong' >"$TMP_ROOT/clipboard-wrong.sh"
 chmod 0755 "$TMP_ROOT"/clipboard-*.sh
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'cat >"$CG_NATIVE_CLIPBOARD"' >"$BIN_DIR/termux-clipboard-set"
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' ':' >"$BIN_DIR/termux-clipboard-get"
+chmod 0755 "$BIN_DIR/termux-clipboard-set" "$BIN_DIR/termux-clipboard-get"
 printf 'lane-a\n' >"$STATE_DIR/current_lane"
 for lane in lane-a lane-b; do { printf 'CG_LANE_ID=%s\n' "$lane"; printf 'CG_LANE_SCOPE=pixel\nCG_LANE_HOST=pixel\nCG_LANE_ROUTE_CLASS=none\nCG_LANE_SECRET_CLASS=public\n'; } >"$STATE_DIR/lanes/$lane/meta.env"; done
 runenv() { env -i PATH="$BIN_DIR:$PATH" PREFIX="$PREFIX_DIR" HOME="$HOME_DIR" TMPDIR="$TEST_TMP" LC_ALL=C CG_OUTPUT_DIR="$OUT_DIR" CG_LANE_STATE_DIR="$STATE_DIR" CGRUN_HEARTBEAT_SECONDS=0 "$@"; }
@@ -44,6 +47,17 @@ mismatch_rc=$?
 set -e
 [ "$mismatch_rc" -eq 0 ]; grep -Fq 'workflow_exit_id=CGRUN_CLIPBOARD_READBACK_MISMATCH' "$TMP_ROOT/mismatch.out"; grep -Fq 'clipboard_verify_state=mismatch' "$TMP_ROOT/mismatch.out"
 
+native_clip="$TMP_ROOT/native-clip"
+set +e
+runenv CG_LANE_ID=lane-a CG_RUN_ID=clip-native-unavailable CG_NATIVE_CLIPBOARD="$native_clip" bash "$BIN_DIR/cgrun" --shell "printf '%s\n' 'RESULT: CMD_OK'" >"$TMP_ROOT/native-unavailable.out" 2>&1
+native_rc=$?
+set -e
+[ "$native_rc" -eq 0 ]
+grep -Fq 'RESULT: CMD_OK' "$native_clip"
+grep -Fq 'clipboard_verify_state=readback_unavailable' "$TMP_ROOT/native-unavailable.out"
+grep -Fq 'clipboard_exit_code=0' "$TMP_ROOT/native-unavailable.out"
+grep -Fq 'RESULT: CGRUN_WORKFLOW_OK outcome=success' "$TMP_ROOT/native-unavailable.out"
+
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'printf "argc=%s\\n" "$#"' 'i=0' 'for arg in "$@"; do i=$((i+1)); printf "arg%s=<%s>\\n" "$i" "$arg"; done' 'printf "%s\\n" "RESULT: ARGV_DONE"' >"$TMP_ROOT/argv.sh"
 chmod 0755 "$TMP_ROOT/argv.sh"
 clip_argv="$TMP_ROOT/clip-argv"
@@ -66,4 +80,5 @@ runenv CG_TEST_CLIPBOARD="$clip_driver" CGRUN_CLIPBOARD_COMMAND="$TMP_ROOT/clipb
 run_id="$(grep '^run_id=' "$TMP_ROOT/driver.out" | tail -n1 | cut -d= -f2-)"; [ -n "$run_id" ]; [ -f "$OUT_DIR/runs/$run_id/run.log" ]; [ "$(cat "$STATE_DIR/lanes/lane-a/latest.path")" = "$OUT_DIR/runs/$run_id/run.log" ]; grep -Fq 'RESULT: DRIVER_OK' "$OUT_DIR/runs/$run_id/run.log"
 
 printf '%s\n' 'PASS exact_run_binding_parallel' 'PASS clipboard_failure_semantics' 'PASS clipboard_readback_mismatch' 'PASS argv_exec_fidelity' 'PASS diagnostic_envelope_first_failure' 'PASS canonical_lane_driver_exact_log'
+printf '%s\n' 'PASS native_clipboard_readback_unavailable'
 printf '%s\n' 'RESULT: TERMUX_IO_VNEXT_VERIFY_DONE outcome=success workflow_exit_code=0'
