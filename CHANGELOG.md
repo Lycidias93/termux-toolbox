@@ -19,6 +19,8 @@
 
 ## Unreleased
 
+- Fixed false `CGRUN_CLIPBOARD_READBACK_MISMATCH` results on modern Android when Termux:API background clipboard reads are OS-denied but return exit code 0 with empty output. Native empty readback is now `readback_unavailable`; real non-empty mismatches and custom readback mismatches remain strict.
+
 - `cg-run-file` now normalizes `PREFIX` and `TMPDIR` to the native Termux paths when the native Termux Bash is present, preventing noninteractive launchers from inheriting an unset `PREFIX` or Linux-style `/tmp` while preserving non-Termux fixture behavior.
 
 - `cg-handoff` now resolves `pixel_local__*` downloads by logical basename with an extension-neutral final suffix, while retaining exact SHA-256 selection and fail-closed ambiguity handling. This tolerates clients that save a `.sh` handoff as `.txt` or another extension.
