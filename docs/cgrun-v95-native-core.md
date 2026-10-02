@@ -54,7 +54,7 @@ The outer `cgrun` remains the sole AutoCopy owner. Numeric results are tracked i
 
 A clipboard failure can no longer inherit a zero handoff code merely because tail generation succeeded. Non-strict mode may leave the command’s shell exit at zero, but the workflow is explicitly `DEGRADED`. Strict mode promotes the handoff code to the workflow exit.
 
-When clipboard readback is available, `cgrun` compares SHA-256 of the expected handoff with readback and records only verification state, not clipboard contents. Android may deny background reads to Termux:API while the CLI still returns success with zero bytes; native empty readback for a non-empty expected payload is therefore `readback_unavailable`, while non-empty differing readback remains `mismatch`. Custom readback remains strict.
+When clipboard readback is available, `cgrun` compares SHA-256 of the expected handoff with readback and records only verification state, not clipboard contents. Android may deny background reads to Termux:API while the CLI either returns success with zero bytes or stalls until the native readback timeout; native empty or timed-out readback for a non-empty expected payload is therefore `readback_unavailable`, while non-empty differing readback remains `mismatch`. Custom readback remains strict.
 
 ## Semantic workflow result
 

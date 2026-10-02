@@ -168,9 +168,11 @@ elif command -v termux-clipboard-set >/dev/null 2>&1 && [ -s "$COPY_SOURCE" ]; t
 			if [ ! -s "$READBACK" ]; then
 				CLIPBOARD_VERIFY_STATE="readback_unavailable"
 			else
-			CLIPBOARD_READBACK_SHA="$(sha256sum "$READBACK" | awk '{print $1}')"
-			if [ "$CLIPBOARD_READBACK_SHA" = "$CLIPBOARD_EXPECTED_SHA" ]; then CLIPBOARD_VERIFY_STATE="match"; else CLIPBOARD_VERIFY_STATE="mismatch"; CLIPBOARD_EXIT_CODE=74; fi
+				CLIPBOARD_READBACK_SHA="$(sha256sum "$READBACK" | awk '{print $1}')"
+				if [ "$CLIPBOARD_READBACK_SHA" = "$CLIPBOARD_EXPECTED_SHA" ]; then CLIPBOARD_VERIFY_STATE="match"; else CLIPBOARD_VERIFY_STATE="mismatch"; CLIPBOARD_EXIT_CODE=74; fi
 			fi
+		elif [ "$read_rc" -eq 124 ] && [ ! -s "$READBACK" ]; then
+			CLIPBOARD_VERIFY_STATE="readback_unavailable"
 		else CLIPBOARD_VERIFY_STATE="readback_failed"; CLIPBOARD_EXIT_CODE=74
 		fi
 	elif [ "$CLIPBOARD_EXIT_CODE" -eq 0 ]; then CLIPBOARD_VERIFY_STATE="readback_unavailable"

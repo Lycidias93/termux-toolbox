@@ -55,7 +55,7 @@ The outer AutoCopy computes SHA-256 for the exact payload. With the native Termu
 - `readback_unavailable`
 - `write_only` / `custom_write_only`
 
-On modern Android, `ClipboardService` can deny background reads to Termux:API while `termux-clipboard-get` still exits 0 with empty output. For the native backend only, `cgrun` therefore treats an empty readback of a non-empty expected payload as `readback_unavailable` rather than `mismatch`; a non-empty differing readback remains a mismatch. Custom readback commands remain strict.
+On modern Android, `ClipboardService` can deny background reads to Termux:API while `termux-clipboard-get` either exits 0 with empty output or stalls until the native readback timeout. For the native backend only, `cgrun` therefore treats an empty or timed-out readback of a non-empty expected payload as `readback_unavailable` rather than `mismatch`; a non-empty differing readback remains a mismatch. Custom readback commands remain strict.
 
 The clipboard content itself is not persisted as verification metadata. Sensitive/redacted runs retain their existing redacted handoff policy.
 
