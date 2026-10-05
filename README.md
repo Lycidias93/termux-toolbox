@@ -155,6 +155,8 @@ bash ./tools/review-termux-public-safety.sh
 bash ./verify/verify-termux-toolbox.sh
 ```
 
+The aggregate verifier also runs `verify/verify-public-safety-review.sh`, which proves both a clean repository scan and a seeded negative leak fixture so guard regex sources do not create false positives while real leaks still fail closed.
+
 ## Heimnetz vendor model
 
 The safe sync direction is:

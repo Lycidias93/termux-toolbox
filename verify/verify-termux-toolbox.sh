@@ -104,6 +104,18 @@ do
   fi
 done
 
+if [[ -f verify/verify-public-safety-review.sh ]]; then
+  if bash verify/verify-public-safety-review.sh; then
+    echo "PASS public_safety_review_contract"
+  else
+    echo "FAIL public_safety_review_contract"
+    fail=1
+  fi
+else
+  echo "FAIL public_safety_review_verify_missing"
+  fail=1
+fi
+
 if [[ -f verify/verify-cg-lane-secret-classes.sh ]]; then
   if bash verify/verify-cg-lane-secret-classes.sh; then
     echo "PASS cg_lane_secret_class_contract"
