@@ -19,6 +19,8 @@
 
 ## Unreleased
 
+- Fixed the public-safety review so the repository's own secret-pattern guard implementations no longer self-trigger the scan; added a regression that requires a clean-root PASS and a seeded leak FAIL, and wired those files into CI path coverage.
+
 - Fixed false clipboard degradation on modern Android when Termux:API background clipboard reads are OS-denied: native exit-0 empty readback and native readback timeout are now `readback_unavailable`; real non-empty mismatches, non-timeout native failures, and custom readback mismatches remain strict.
 
 - `cg-run-file` now normalizes `PREFIX` and `TMPDIR` to the native Termux paths when the native Termux Bash is present, preventing noninteractive launchers from inheriting an unset `PREFIX` or Linux-style `/tmp` while preserving non-Termux fixture behavior.
