@@ -33,7 +33,7 @@ esac
 found=0
 while IFS= read -r -d '' match; do
   case "$match" in
-    ./tools/review-termux-public-safety.sh|./tools/secret-guard.sh|./tools/assistant-output-guard.sh|./verify/verify-termux-toolbox.sh)
+    ./tools/review-termux-public-safety.sh|./tools/secret-guard.sh|./tools/assistant-output-guard.sh)
       continue
       ;;
   esac
