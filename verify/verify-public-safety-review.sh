@@ -11,7 +11,8 @@ LEAK_OUT="$(mktemp "$TMP_BASE/termux-public-safety-leak.XXXXXX")"
 BASENAME_OUT="$(mktemp "$TMP_BASE/termux-public-safety-basename.XXXXXX")"
 BINARY_OUT="$(mktemp "$TMP_BASE/termux-public-safety-binary.XXXXXX")"
 NEWLINE_OUT="$(mktemp "$TMP_BASE/termux-public-safety-newline.XXXXXX")"
-cleanup() { rm -rf "$FIXTURE"; rm -f "$CLEAN_OUT" "$LEAK_OUT" "$BASENAME_OUT" "$BINARY_OUT" "$NEWLINE_OUT"; }
+VERIFIER_OUT="$(mktemp "$TMP_BASE/termux-public-safety-verifier.XXXXXX")"
+cleanup() { rm -rf "$FIXTURE"; rm -f "$CLEAN_OUT" "$LEAK_OUT" "$BASENAME_OUT" "$BINARY_OUT" "$NEWLINE_OUT" "$VERIFIER_OUT"; }
 trap cleanup EXIT
 
 bash "$CHECKER" "$ROOT" >"$CLEAN_OUT"
@@ -55,6 +56,15 @@ if bash "$CHECKER" "$FIXTURE" >"$NEWLINE_OUT" 2>&1; then
 fi
 grep -Fq 'FAIL public_safety_review reason=forbidden_pattern' "$NEWLINE_OUT"
 if grep -Fq 'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD' "$NEWLINE_OUT"; then echo 'FAIL public_safety_newline_content_exposed'; exit 1; fi
+mkdir -p "$FIXTURE/verify"
+printf '%s %s %s\n' "$auth_label" "$bearer_word" 'EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE' >"$FIXTURE/verify/verify-termux-toolbox.sh"
+if bash "$CHECKER" "$FIXTURE" >"$VERIFIER_OUT" 2>&1; then
+  echo 'FAIL public_safety_aggregate_verifier_fixture_not_detected'
+  exit 1
+fi
+grep -Fq 'MATCH path=./verify/verify-termux-toolbox.sh' "$VERIFIER_OUT"
+grep -Fq 'FAIL public_safety_review reason=forbidden_pattern' "$VERIFIER_OUT"
+if grep -Fq 'EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE' "$VERIFIER_OUT"; then echo 'FAIL public_safety_aggregate_verifier_content_exposed'; exit 1; fi
 grep -Fq 'bash tools/review-termux-public-safety.sh' "$ROOT/verify/verify-termux-toolbox.sh"
 if grep -Fq 'SECRET_SCAN_FILE' "$ROOT/verify/verify-termux-toolbox.sh"; then echo 'FAIL aggregate_secret_content_printing_scan_present'; exit 1; fi
 echo 'RESULT: TERMUX_PUBLIC_SAFETY_REVIEW_VERIFY_DONE'
