@@ -155,7 +155,7 @@ bash ./tools/review-termux-public-safety.sh
 bash ./verify/verify-termux-toolbox.sh
 ```
 
-The aggregate verifier also runs `verify/verify-public-safety-review.sh`, which proves a clean repository scan plus seeded negative leak fixtures. Only the exact repository-owned guard paths are exempt from their own regex definitions; same-basename files elsewhere remain scanned, and real leaks fail closed.
+The aggregate verifier also runs `verify/verify-public-safety-review.sh`, which proves a clean repository scan plus fail-closed leak fixtures for ordinary text, same-basename guard names, NUL-containing binary-classified files, and newline-bearing paths. Only the exact repository-owned guard paths are exempt, and matching content is never printed; only shell-escaped paths are reported.
 
 ## Heimnetz vendor model
 

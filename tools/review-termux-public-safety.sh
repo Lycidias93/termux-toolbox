@@ -15,7 +15,7 @@ trap cleanup EXIT
 # are filtered only by their exact repository paths so same-basename files elsewhere
 # remain covered by the safety review.
 set +e
-grep -RIlE 'PRIVATE KEY|OPENSSH|BEGIN RSA|BEGIN EC|BEGIN DSA|ghp_|github_pat_|Authorization:|Bearer |refresh_token|access_token|client_secret|password=|passwd=|rclone\.conf|100\.100\.100\.100|192\.168\.|fd00::' . \
+grep -RlaZE 'PRIVATE KEY|OPENSSH|BEGIN RSA|BEGIN EC|BEGIN DSA|ghp_|github_pat_|Authorization:|Bearer |refresh_token|access_token|client_secret|password=|passwd=|token=|AKIA[0-9A-Z]{16}|rclone\.conf|100\.100\.100\.100|192\.168\.|fd00::' . \
   --exclude-dir=.git \
   --exclude='*.sha256' \
   --exclude='SHA256SUMS' \
@@ -31,13 +31,13 @@ case "$scan_rc" in
 esac
 
 found=0
-while IFS= read -r match; do
+while IFS= read -r -d '' match; do
   case "$match" in
     ./tools/review-termux-public-safety.sh|./tools/secret-guard.sh|./tools/assistant-output-guard.sh|./verify/verify-termux-toolbox.sh)
       continue
       ;;
   esac
-  printf 'MATCH path=%s\n' "$match"
+  printf 'MATCH path=%q\n' "$match"
   found=1
 done <"$MATCHES"
 

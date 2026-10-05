@@ -6,10 +6,9 @@ cd "$ROOT"
 
 TMP_BASE="${TMPDIR:-$HOME/.cache/tmp}"
 mkdir -p "$TMP_BASE"
-SECRET_SCAN_FILE="$(mktemp "$TMP_BASE/termux-toolbox-secret-scan.XXXXXX")"
 STATUS_BEFORE="$(mktemp "$TMP_BASE/termux-toolbox-status-before.XXXXXX")"
 STATUS_AFTER="$(mktemp "$TMP_BASE/termux-toolbox-status-after.XXXXXX")"
-cleanup() { rm -f "$SECRET_SCAN_FILE" "$STATUS_BEFORE" "$STATUS_AFTER"; }
+cleanup() { rm -f "$STATUS_BEFORE" "$STATUS_AFTER"; }
 trap cleanup EXIT
 
 echo "scope=termux-toolbox-verify"
@@ -23,9 +22,9 @@ for runtime in "$ROOT"/bin/*; do
   [[ -f "$runtime" ]] || continue
   first="$(sed -n '1p' "$runtime")"
   if [[ "$first" == '#!/data/data/com.termux/files/usr/bin/bash' ]]; then
-    echo "PASS native_shebang file=${runtime#$ROOT/}"
+    echo "PASS native_shebang file=${runtime#"$ROOT"/}"
   else
-    echo "FAIL native_shebang file=${runtime#$ROOT/} got=$first"
+    echo "FAIL native_shebang file=${runtime#"$ROOT"/} got=$first"
     fail=1
   fi
 done
@@ -79,13 +78,9 @@ if [ "$inside_git" = "yes" ]; then
   git diff --check
 fi
 
-if grep -RInE '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_[A-Za-z0-9_]+|github_pat_|AKIA[0-9A-Z]{16}|client_secret|refresh_token|access_token|password=|token=)' . \
-  --exclude-dir=.git \
-  --exclude='verify-termux-toolbox.sh' \
-  --exclude='review-termux-public-safety.sh' \
-  --exclude='assistant-output-guard.sh' \
-  --exclude='secret-guard.sh' >"$SECRET_SCAN_FILE" 2>/dev/null; then
-  cat "$SECRET_SCAN_FILE"
+if bash tools/review-termux-public-safety.sh; then
+  echo "PASS secret_guard"
+else
   echo "FAIL secret_guard"
   exit 1
 fi
