@@ -19,7 +19,7 @@
 
 ## Unreleased
 
-- Fixed the public-safety review so the repository's own secret-pattern guard implementations no longer self-trigger the scan; added a regression that requires a clean-root PASS and a seeded leak FAIL, and wired those files into CI path coverage.
+- Hardened the public-safety review so only the exact repository-owned secret-pattern guard paths are exempt from self-matching; same-basename files elsewhere are scanned and covered by a seeded negative regression, while scan errors and real leaks remain fail-closed.
 
 - Fixed false clipboard degradation on modern Android when Termux:API background clipboard reads are OS-denied: native exit-0 empty readback and native readback timeout are now `readback_unavailable`; real non-empty mismatches, non-timeout native failures, and custom readback mismatches remain strict.
 
