@@ -9,7 +9,9 @@ FIXTURE="$(mktemp -d "$TMP_BASE/termux-public-safety.XXXXXX")"
 CLEAN_OUT="$(mktemp "$TMP_BASE/termux-public-safety-clean.XXXXXX")"
 LEAK_OUT="$(mktemp "$TMP_BASE/termux-public-safety-leak.XXXXXX")"
 BASENAME_OUT="$(mktemp "$TMP_BASE/termux-public-safety-basename.XXXXXX")"
-cleanup() { rm -rf "$FIXTURE"; rm -f "$CLEAN_OUT" "$LEAK_OUT" "$BASENAME_OUT"; }
+BINARY_OUT="$(mktemp "$TMP_BASE/termux-public-safety-binary.XXXXXX")"
+NEWLINE_OUT="$(mktemp "$TMP_BASE/termux-public-safety-newline.XXXXXX")"
+cleanup() { rm -rf "$FIXTURE"; rm -f "$CLEAN_OUT" "$LEAK_OUT" "$BASENAME_OUT" "$BINARY_OUT" "$NEWLINE_OUT"; }
 trap cleanup EXIT
 
 bash "$CHECKER" "$ROOT" >"$CLEAN_OUT"
@@ -32,5 +34,27 @@ if bash "$CHECKER" "$FIXTURE" >"$BASENAME_OUT" 2>&1; then
   exit 1
 fi
 grep -Fq 'MATCH path=./nested/secret-guard.sh' "$BASENAME_OUT"
+if grep -Fq 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB' "$BASENAME_OUT"; then echo 'FAIL public_safety_match_content_exposed'; exit 1; fi
 grep -Fq 'FAIL public_safety_review reason=forbidden_pattern' "$BASENAME_OUT"
+rm -rf "$FIXTURE/nested"
+printf 'safe\000%s %s %s\n' "$auth_label" "$bearer_word" 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' >"$FIXTURE/blob.bin"
+if bash "$CHECKER" "$FIXTURE" >"$BINARY_OUT" 2>&1; then
+  echo 'FAIL public_safety_binary_fixture_not_detected'
+  exit 1
+fi
+grep -Fq 'MATCH path=./blob.bin' "$BINARY_OUT"
+grep -Fq 'FAIL public_safety_review reason=forbidden_pattern' "$BINARY_OUT"
+if grep -Fq 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' "$BINARY_OUT"; then echo 'FAIL public_safety_binary_content_exposed'; exit 1; fi
+rm -f "$FIXTURE/blob.bin"
+newline_dir=$'review-termux-public-safety.sh\n.'
+mkdir -p "$FIXTURE/tools/$newline_dir/tools"
+printf '%s %s %s\n' "$auth_label" "$bearer_word" 'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD' >"$FIXTURE/tools/$newline_dir/tools/secret-guard.sh"
+if bash "$CHECKER" "$FIXTURE" >"$NEWLINE_OUT" 2>&1; then
+  echo 'FAIL public_safety_newline_path_fixture_not_detected'
+  exit 1
+fi
+grep -Fq 'FAIL public_safety_review reason=forbidden_pattern' "$NEWLINE_OUT"
+if grep -Fq 'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD' "$NEWLINE_OUT"; then echo 'FAIL public_safety_newline_content_exposed'; exit 1; fi
+grep -Fq 'bash tools/review-termux-public-safety.sh' "$ROOT/verify/verify-termux-toolbox.sh"
+if grep -Fq 'SECRET_SCAN_FILE' "$ROOT/verify/verify-termux-toolbox.sh"; then echo 'FAIL aggregate_secret_content_printing_scan_present'; exit 1; fi
 echo 'RESULT: TERMUX_PUBLIC_SAFETY_REVIEW_VERIFY_DONE'
