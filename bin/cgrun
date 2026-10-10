@@ -65,6 +65,8 @@ set_semantics() {
 	elif [ "$TAIL_HELPER_EXIT_CODE" -ne 0 ]; then
 		WORKFLOW_EXIT_ID="CGRUN_TAIL_HELPER_FAILED"; WORKFLOW_EXIT_CLASS="validation"; WORKFLOW_EXIT_STAGE="helper"
 		WORKFLOW_RETRY_POLICY="after_fix"; WORKFLOW_AUTO_FIX="yes"; WORKFLOW_DIAGNOSIS_ID="CGRUN_BOUND_LOG_AND_TAIL_INSPECT"; WORKFLOW_FIX_ID="CGRUN_REBIND_EXACT_LOG_AND_RETRY"; WORKFLOW_VERIFY_ID="CGRUN_BOUND_HANDOFF_RERUN"
+	elif [ "${HANDOFF_OUTCOME:-}" = "stream_failed" ]; then
+		WORKFLOW_EXIT_ID="CGRUN_STREAM_DELIVERY_FAILED"; WORKFLOW_EXIT_CLASS="transport"; WORKFLOW_EXIT_STAGE="stream"; WORKFLOW_RETRY_POLICY="after_fix"; WORKFLOW_VERIFY_ID="CGRUN_STREAM_CAPTURE_VERIFY"
 	elif [ "$CLIPBOARD_EXIT_CODE" -ne 0 ]; then
 		if [ "$CLIPBOARD_VERIFY_STATE" = "mismatch" ]; then
 			WORKFLOW_EXIT_ID="CGRUN_CLIPBOARD_READBACK_MISMATCH"; WORKFLOW_DIAGNOSIS_ID="CGRUN_CLIPBOARD_HASH_COMPARE"; WORKFLOW_FIX_ID="CGRUN_REWRITE_CLIPBOARD_BOUND_PAYLOAD"
@@ -73,6 +75,10 @@ set_semantics() {
 		fi
 		WORKFLOW_EXIT_CLASS="transport"; WORKFLOW_EXIT_STAGE="clipboard"; WORKFLOW_RETRY_POLICY="bounded"; WORKFLOW_AUTO_FIX="yes"; WORKFLOW_VERIFY_ID="CGRUN_CLIPBOARD_BOUND_REVERIFY"
 	fi
+}
+
+has_controlling_tty() {
+	( : </dev/tty ) 2>/dev/null
 }
 
 write_receipt() {
@@ -85,7 +91,7 @@ write_receipt() {
 		printf 'scope=%s\n' "$SCOPE"; printf 'host=%s\n' "$HOST"; printf 'route_class=%s\n' "$ROUTE_CLASS"; printf 'secret_class=%s\n' "$SECRET_CLASS"
 		printf 'run_id=%s\n' "$RUN_ID"; printf 'execution_id=%s\n' "$EXECUTION_ID"; printf 'run_mode=%s\n' "$RUN_MODE"
 		printf 'command_exit_code=%s\n' "$COMMAND_EXIT_CODE"; printf 'helper_exit_code=%s\n' "$TAIL_HELPER_EXIT_CODE"; printf 'clipboard_exit_code=%s\n' "$CLIPBOARD_EXIT_CODE"; printf 'handoff_exit_code=%s\n' "$HANDOFF_EXIT_CODE"; printf 'workflow_exit_code=%s\n' "$WORKFLOW_EXIT_CODE"
-		printf 'clipboard_verify_state=%s\n' "$CLIPBOARD_VERIFY_STATE"; printf 'log_path=%s\n' "$BOUND_LOG"; printf 'handoff_path=%s\n' "$COPY_SOURCE"
+		printf 'clipboard_verify_state=%s\n' "$CLIPBOARD_VERIFY_STATE"; printf 'handoff_outcome=%s\n' "$HANDOFF_OUTCOME"; printf 'tee_exit_code=%s\n' "$TEE_EXIT_CODE"; printf 'log_path=%s\n' "$BOUND_LOG"; printf 'handoff_path=%s\n' "$COPY_SOURCE"
 		printf 'workflow_exit_id=%s\n' "$WORKFLOW_EXIT_ID"; printf 'workflow_exit_class=%s\n' "$WORKFLOW_EXIT_CLASS"; printf 'workflow_exit_stage=%s\n' "$WORKFLOW_EXIT_STAGE"
 		printf 'workflow_retry_policy=%s\n' "$WORKFLOW_RETRY_POLICY"; printf 'workflow_auto_fix=%s\n' "$WORKFLOW_AUTO_FIX"; printf 'workflow_diagnosis_id=%s\n' "$WORKFLOW_DIAGNOSIS_ID"
 		printf 'workflow_fix_id=%s\n' "$WORKFLOW_FIX_ID"; printf 'workflow_verify_id=%s\n' "$WORKFLOW_VERIFY_ID"; printf 'workflow_exit_confidence=%s\n' "$WORKFLOW_EXIT_CONFIDENCE"; printf 'workflow_exit_source=%s\n' "$WORKFLOW_EXIT_SOURCE"
@@ -153,12 +159,13 @@ if [ -n "${CGRUN_CLIPBOARD_COMMAND:-}" ] && [ -s "$COPY_SOURCE" ]; then
 		else CLIPBOARD_VERIFY_STATE="readback_failed"; CLIPBOARD_EXIT_CODE=74
 		fi
 	fi
-elif [ "${CGRUN_NONTTY_STREAM_ONLY:-1}" = "1" ] && [ ! -t 0 ] && [ ! -t 1 ] && [ ! -t 2 ]; then
+elif [ "${CGRUN_NONTTY_STREAM_ONLY:-1}" = "1" ] && [ ! -t 0 ] && [ ! -t 1 ] && [ ! -t 2 ] && ! has_controlling_tty; then
 	# RDC/SSH output is the durable handoff. Do not request Android clipboard with no TTY.
 	# An explicit custom clipboard command above still takes precedence.
 	CLIPBOARD_EXIT_CODE=0
 	CLIPBOARD_VERIFY_STATE="noninteractive_stream"
-	printf 'CGRUN_CLIPBOARD_TRANSPORT mode=noninteractive_stream clipboard_write=skipped result=PASS execution_id=%s\n' "$EXECUTION_ID"
+	if [ "$TEE_EXIT_CODE" -eq 0 ]; then stream_result=PASS; else stream_result=FAIL; fi
+	printf 'CGRUN_CLIPBOARD_TRANSPORT mode=noninteractive_stream clipboard_write=skipped result=%s execution_id=%s\n' "$stream_result" "$EXECUTION_ID"
 elif command -v termux-clipboard-set >/dev/null 2>&1 && [ -s "$COPY_SOURCE" ]; then
 	set +e
 	if command -v timeout >/dev/null 2>&1; then timeout 10 termux-clipboard-set <"$COPY_SOURCE"; else termux-clipboard-set <"$COPY_SOURCE"; fi
@@ -188,11 +195,13 @@ rm -f "$READBACK" 2>/dev/null || true
 
 if [ "$TAIL_HELPER_EXIT_CODE" -ne 0 ]; then HANDOFF_EXIT_CODE="$TAIL_HELPER_EXIT_CODE"
 elif [ "$CLIPBOARD_EXIT_CODE" -ne 0 ]; then HANDOFF_EXIT_CODE="$CLIPBOARD_EXIT_CODE"
+elif [ "$CLIPBOARD_VERIFY_STATE" = "noninteractive_stream" ] && [ "$TEE_EXIT_CODE" -ne 0 ]; then HANDOFF_EXIT_CODE="$TEE_EXIT_CODE"
 else HANDOFF_EXIT_CODE=0
 fi
 if [ "$TAIL_HELPER_EXIT_CODE" -ne 0 ] && [ "$CLIPBOARD_EXIT_CODE" -ne 0 ]; then HANDOFF_OUTCOME="tail_and_clipboard_failed"
 elif [ "$TAIL_HELPER_EXIT_CODE" -ne 0 ]; then HANDOFF_OUTCOME="tail_failed"
 elif [ "$CLIPBOARD_EXIT_CODE" -ne 0 ]; then HANDOFF_OUTCOME="clipboard_failed"
+elif [ "$CLIPBOARD_VERIFY_STATE" = "noninteractive_stream" ] && [ "$TEE_EXIT_CODE" -ne 0 ]; then HANDOFF_OUTCOME="stream_failed"
 elif [ "$CLIPBOARD_VERIFY_STATE" = "noninteractive_stream" ]; then HANDOFF_OUTCOME="stream_only"
 else HANDOFF_OUTCOME="success"
 fi
