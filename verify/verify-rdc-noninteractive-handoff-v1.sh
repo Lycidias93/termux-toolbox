@@ -79,7 +79,7 @@ strict_rc=$?
 set -e
 [[ "$strict_rc" -eq 47 ]]
 grep -Fq 'RESULT: CGRUN_WORKFLOW_FAILED outcome=handoff_failed' "$WORK/tee-strict.out"
-printf '%s\\n' 'PASS: tee_transport_failure_propagation'
+printf '%s\n' 'PASS: tee_transport_failure_propagation'
 
 set +e
 env -i PATH="$SHIM:$BIN:$PATH" HOME="$HOME_DIR" TMPDIR="$WORK/tmp" \
@@ -91,7 +91,7 @@ set -e
 grep -Fq 'RESULT: CG_HANDOFF_EARLY_AUTOCOPY_DONE clipboard_exit_code=0' "$WORK/early-failure.out"
 grep -Fq 'transport=noninteractive_stream' "$WORK/early-failure.out"
 [[ ! -e "$WORK/android-clipboard.called" ]]
-printf '%s\\n' 'PASS: early_failure_noninteractive_stream'
+printf '%s\n' 'PASS: early_failure_noninteractive_stream'
 
 if command -v script >/dev/null 2>&1; then
     env -i PATH="$SHIM:$BIN:$PATH" PREFIX="$PREFIX_DIR" HOME="$HOME_DIR" TMPDIR="$WORK/tmp" \
@@ -100,11 +100,12 @@ if command -v script >/dev/null 2>&1; then
         script -q -e -c "bash '$BIN/cgrun' 'printf ok' </dev/null >'$WORK/controlling-tty.out' 2>&1" /dev/null >"$WORK/pty-wrapper.out" 2>&1
     grep -Fq 'CALLED' "$WORK/android-clipboard.called"
     grep -Fq 'clipboard_verify_state=write_only' "$WORK/controlling-tty.out"
-    printf '%s\\n' 'PASS: redirected_stdio_controlling_tty_keeps_clipboard'
+    printf '%s\n' 'PASS: redirected_stdio_controlling_tty_keeps_clipboard'
     rm -f "$WORK/android-clipboard.called"
 fi
 
-awk '/^drain_pending_tty_input\(\) \{$/{inside=1} inside{print} inside && /^\}$/{exit}' "$ROOT/bin/cg-handoff" >"$WORK/tty-function.sh"
+awk '/^has_controlling_tty\(\) \{$/{inside=1} inside{print} inside && /^\}$/{exit}' "$ROOT/bin/cg-handoff" >"$WORK/tty-function.sh"
+awk '/^drain_pending_tty_input\(\) \{$/{inside=1} inside{print} inside && /^\}$/{exit}' "$ROOT/bin/cg-handoff" >>"$WORK/tty-function.sh"
 grep -Fq 'drain_pending_tty_input() {' "$WORK/tty-function.sh"
 env -i PATH="$PATH" bash -c 'source "$1"; drain_pending_tty_input' _ "$WORK/tty-function.sh" </dev/null >"$WORK/tty.out" 2>"$WORK/tty.err"
 grep -Fq 'CG_HANDOFF_TTY_DRAIN mode=noninteractive result=not_applicable' "$WORK/tty.out"
