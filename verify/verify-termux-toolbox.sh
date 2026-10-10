@@ -219,6 +219,18 @@ else
   fail=1
 fi
 
+if [[ -f verify/verify-rdc-noninteractive-handoff-v1.sh ]]; then
+  if bash verify/verify-rdc-noninteractive-handoff-v1.sh; then
+    echo "PASS rdc_noninteractive_stream_transport_contract"
+  else
+    echo "FAIL rdc_noninteractive_stream_transport_contract"
+    fail=1
+  fi
+else
+  echo "FAIL rdc_noninteractive_stream_transport_verify_missing"
+  fail=1
+fi
+
 if [ "$inside_git" = "yes" ]; then
   git status --porcelain=v2 --untracked-files=all > "$STATUS_AFTER"
   if cmp -s "$STATUS_BEFORE" "$STATUS_AFTER"; then

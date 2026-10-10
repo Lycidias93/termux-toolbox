@@ -18,7 +18,7 @@ printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' ':' >"$BIN_DIR/termux-cl
 chmod 0755 "$BIN_DIR/termux-clipboard-set" "$BIN_DIR/termux-clipboard-get"
 printf 'lane-a\n' >"$STATE_DIR/current_lane"
 for lane in lane-a lane-b; do { printf 'CG_LANE_ID=%s\n' "$lane"; printf 'CG_LANE_SCOPE=pixel\nCG_LANE_HOST=pixel\nCG_LANE_ROUTE_CLASS=none\nCG_LANE_SECRET_CLASS=public\n'; } >"$STATE_DIR/lanes/$lane/meta.env"; done
-runenv() { env -i PATH="$BIN_DIR:$PATH" PREFIX="$PREFIX_DIR" HOME="$HOME_DIR" TMPDIR="$TEST_TMP" LC_ALL=C CG_OUTPUT_DIR="$OUT_DIR" CG_LANE_STATE_DIR="$STATE_DIR" CGRUN_HEARTBEAT_SECONDS=0 "$@"; }
+runenv() { env -i PATH="$BIN_DIR:$PATH" PREFIX="$PREFIX_DIR" HOME="$HOME_DIR" TMPDIR="$TEST_TMP" LC_ALL=C CG_OUTPUT_DIR="$OUT_DIR" CG_LANE_STATE_DIR="$STATE_DIR" CGRUN_HEARTBEAT_SECONDS=0 CGRUN_NONTTY_STREAM_ONLY=0 "$@"; }
 
 clip_a="$TMP_ROOT/clip-a"; clip_b="$TMP_ROOT/clip-b"
 runenv CG_LANE_ID=lane-a CG_RUN_ID=run-a CG_TEST_CLIPBOARD="$clip_a" CGRUN_CLIPBOARD_COMMAND="$TMP_ROOT/clipboard-write.sh" CGRUN_CLIPBOARD_READ_COMMAND="$TMP_ROOT/clipboard-read.sh" bash "$BIN_DIR/cgrun" --shell "printf '%s\\n' 'A_BEGIN'; sleep 0.25; printf '%s\\n' 'RESULT: A_DONE'" >"$TMP_ROOT/a.out" & pid_a=$!
