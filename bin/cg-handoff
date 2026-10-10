@@ -20,9 +20,12 @@ mkdir -p "$OUTPUT_ROOT" "$TMP_ROOT" 2>/dev/null || true
 : >"$PREFLIGHT_LOG" 2>/dev/null || true
 
 # CG_HANDOFF_EXTENSION_NEUTRAL_SOURCE_V1
+has_controlling_tty() {
+	( : </dev/tty ) 2>/dev/null
+}
 # CG_HANDOFF_EARLY_AUTOCOPY_V1
 write_failure_autocopy() {
-	local reason="$1" copy_mode="full" clipboard_rc=127 clip_command
+	local reason="$1" copy_mode="full" clipboard_rc=127 clip_command transport="android_clipboard"
 	case "${secret_class:-unknown}" in
 	none | public | redacted) copy_mode="full" ;;
 	*) copy_mode="redacted" ;;
@@ -59,6 +62,9 @@ write_failure_autocopy() {
 		else
 			clipboard_rc=$?
 		fi
+	elif [[ "${CGRUN_NONTTY_STREAM_ONLY:-1}" == "1" ]] && [[ ! -t 0 && ! -t 1 && ! -t 2 ]] && ! has_controlling_tty; then
+		clipboard_rc=0
+		transport="noninteractive_stream"
 	elif command -v termux-clipboard-set >/dev/null 2>&1; then
 		if command -v timeout >/dev/null 2>&1; then
 			if timeout 10 termux-clipboard-set <"$AUTOCOPY_LOG"; then
@@ -73,8 +79,8 @@ write_failure_autocopy() {
 		fi
 	fi
 
-	printf 'RESULT: CG_HANDOFF_EARLY_AUTOCOPY_DONE clipboard_exit_code=%s mode=%s source=%s reason=%s\n' \
-		"$clipboard_rc" "$copy_mode" "$AUTOCOPY_LOG" "$reason" >&2
+	printf 'RESULT: CG_HANDOFF_EARLY_AUTOCOPY_DONE clipboard_exit_code=%s mode=%s source=%s reason=%s transport=%s\n' \
+		"$clipboard_rc" "$copy_mode" "$AUTOCOPY_LOG" "$reason" "$transport" >&2
 	return 0
 }
 
@@ -151,7 +157,7 @@ drain_pending_tty_input() {
 	local poll_timeout="${CG_HANDOFF_TTY_POLL_TIMEOUT:-0.05}"
 
 	[[ "${CG_HANDOFF_TTY_DRAIN:-1}" == "1" ]] || return 0
-	if [[ ! -t 0 && ! -t 1 && ! -t 2 ]]; then
+	if [[ ! -t 0 && ! -t 1 && ! -t 2 ]] && ! has_controlling_tty; then
 		printf 'CG_HANDOFF_TTY_DRAIN mode=noninteractive result=not_applicable\n'
 		return 0
 	fi
