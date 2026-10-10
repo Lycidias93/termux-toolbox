@@ -54,7 +54,7 @@ printf '%s\n' 'PASS: noninteractive_android_clipboard_skipped'
 run_case explicit-custom CGRUN_CLIPBOARD_COMMAND="$WORK/custom-writer.sh"
 grep -Fq 'clipboard_verify_state=custom_write_only' "$WORK/explicit-custom.out"
 grep -Fq 'RESULT: CGRUN_WORKFLOW_OK outcome=success' "$WORK/explicit-custom.out"
-grep -Fq 'task=unbound' "$WORK/custom-capture"
+grep -Fq 'RESULT: RDC_NONTYY_PAYLOAD_OK' "$WORK/custom-capture"
 [[ ! -e "$WORK/android-clipboard.called" ]]
 printf '%s\n' 'PASS: explicit_clipboard_override_kept'
 
@@ -65,5 +65,7 @@ grep -Fq 'CG_HANDOFF_TTY_DRAIN mode=noninteractive result=not_applicable' "$WORK
 [[ ! -s "$WORK/tty.err" ]]
 printf '%s\n' 'PASS: noninteractive_tty_drain_skipped'
 
-bash -n "$ROOT/bin/cgrun" "$ROOT/bin/cg-handoff" "$ROOT/verify/verify-rdc-noninteractive-handoff-v1.sh"
+for script in "$ROOT/bin/cgrun" "$ROOT/bin/cg-handoff" "$ROOT/verify/verify-rdc-noninteractive-handoff-v1.sh"; do
+    bash -n "$script"
+done
 printf '%s\n' 'RESULT: RDC_NONINTERACTIVE_HANDOFF_VERIFY_DONE outcome=success cases=3 workflow_exit_code=0'
