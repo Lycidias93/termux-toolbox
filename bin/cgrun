@@ -153,6 +153,12 @@ if [ -n "${CGRUN_CLIPBOARD_COMMAND:-}" ] && [ -s "$COPY_SOURCE" ]; then
 		else CLIPBOARD_VERIFY_STATE="readback_failed"; CLIPBOARD_EXIT_CODE=74
 		fi
 	fi
+elif [ "${CGRUN_NONTTY_STREAM_ONLY:-1}" = "1" ] && [ ! -t 0 ] && [ ! -t 1 ] && [ ! -t 2 ]; then
+	# RDC/SSH output is the durable handoff. Do not request Android clipboard with no TTY.
+	# An explicit custom clipboard command above still takes precedence.
+	CLIPBOARD_EXIT_CODE=0
+	CLIPBOARD_VERIFY_STATE="noninteractive_stream"
+	printf 'CGRUN_CLIPBOARD_TRANSPORT mode=noninteractive_stream clipboard_write=skipped result=PASS execution_id=%s\n' "$EXECUTION_ID"
 elif command -v termux-clipboard-set >/dev/null 2>&1 && [ -s "$COPY_SOURCE" ]; then
 	set +e
 	if command -v timeout >/dev/null 2>&1; then timeout 10 termux-clipboard-set <"$COPY_SOURCE"; else termux-clipboard-set <"$COPY_SOURCE"; fi
@@ -187,6 +193,7 @@ fi
 if [ "$TAIL_HELPER_EXIT_CODE" -ne 0 ] && [ "$CLIPBOARD_EXIT_CODE" -ne 0 ]; then HANDOFF_OUTCOME="tail_and_clipboard_failed"
 elif [ "$TAIL_HELPER_EXIT_CODE" -ne 0 ]; then HANDOFF_OUTCOME="tail_failed"
 elif [ "$CLIPBOARD_EXIT_CODE" -ne 0 ]; then HANDOFF_OUTCOME="clipboard_failed"
+elif [ "$CLIPBOARD_VERIFY_STATE" = "noninteractive_stream" ]; then HANDOFF_OUTCOME="stream_only"
 else HANDOFF_OUTCOME="success"
 fi
 
