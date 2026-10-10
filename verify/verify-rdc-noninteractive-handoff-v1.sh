@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+command -v setsid >/dev/null 2>&1 || { printf '%s\n' 'FAIL: setsid_required_for_nontty_fixture' >&2; exit 1; }
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/rdc-nontty-handoff.XXXXXX")"
 trap 'rm -rf -- "$WORK"' EXIT
 PREFIX_DIR="$WORK/prefix"
@@ -37,7 +38,7 @@ chmod 0755 "$WORK/custom-writer.sh"
 run_case() {
     local run_id="$1"
     shift
-    env -i \
+    setsid -w env -i \
         PATH="$SHIM:$BIN:$PATH" \
         PREFIX="$PREFIX_DIR" \
         HOME="$HOME_DIR" \
@@ -48,7 +49,7 @@ run_case() {
         CG_RUN_ID="$run_id" \
         CG_RUN_MODE=verify \
         CGRUN_HEARTBEAT_SECONDS=0 \
-        "$@" bash "$BIN/cgrun" "printf '%s\\n' 'RESULT: RDC_NONTYY_PAYLOAD_OK'" >"$WORK/$run_id.out"
+        "$@" bash "$BIN/cgrun" "printf '%s\\n' 'RESULT: RDC_NONTYY_PAYLOAD_OK'" </dev/null >"$WORK/$run_id.out" 2>"$WORK/$run_id.err"
 }
 
 run_case noninteractive-stream
@@ -82,7 +83,7 @@ grep -Fq 'RESULT: CGRUN_WORKFLOW_FAILED outcome=handoff_failed' "$WORK/tee-stric
 printf '%s\n' 'PASS: tee_transport_failure_propagation'
 
 set +e
-env -i PATH="$SHIM:$BIN:$PATH" HOME="$HOME_DIR" TMPDIR="$WORK/tmp" \
+setsid -w env -i PATH="$SHIM:$BIN:$PATH" HOME="$HOME_DIR" TMPDIR="$WORK/tmp" \
   CG_OUTPUT_DIR="$WORK/early-logs" CG_TEST_ANDROID_CLIP_SENTINEL="$WORK/android-clipboard.called" \
   bash "$ROOT/bin/cg-handoff" >"$WORK/early-failure.out" 2>&1
 early_rc=$?
@@ -107,7 +108,7 @@ fi
 awk '/^has_controlling_tty\(\) \{$/{inside=1} inside{print} inside && /^\}$/{exit}' "$ROOT/bin/cg-handoff" >"$WORK/tty-function.sh"
 awk '/^drain_pending_tty_input\(\) \{$/{inside=1} inside{print} inside && /^\}$/{exit}' "$ROOT/bin/cg-handoff" >>"$WORK/tty-function.sh"
 grep -Fq 'drain_pending_tty_input() {' "$WORK/tty-function.sh"
-env -i PATH="$PATH" bash -c 'source "$1"; drain_pending_tty_input' _ "$WORK/tty-function.sh" </dev/null >"$WORK/tty.out" 2>"$WORK/tty.err"
+setsid -w env -i PATH="$PATH" bash -c 'source "$1"; drain_pending_tty_input' _ "$WORK/tty-function.sh" </dev/null >"$WORK/tty.out" 2>"$WORK/tty.err"
 grep -Fq 'CG_HANDOFF_TTY_DRAIN mode=noninteractive result=not_applicable' "$WORK/tty.out"
 [[ ! -s "$WORK/tty.err" ]]
 printf '%s\n' 'PASS: noninteractive_tty_drain_skipped'
