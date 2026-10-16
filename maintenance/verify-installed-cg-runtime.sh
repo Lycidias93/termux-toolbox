@@ -89,7 +89,7 @@ grep -Fq 'run_preflight cglint "$dst"' "$BIN_DIR/cg-handoff" ||
 	fail 'cg_handoff_cglint_gate_call_missing'
 grep -Fq 'CG_HANDOFF_BUNDLE_V1' "$BIN_DIR/cg-handoff" ||
 	fail 'cg_handoff_bundle_v1_marker_missing'
-grep -Fq 'cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"' "$BIN_DIR/cg-handoff" ||
+grep -Fq 'cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class" "$lane"' "$BIN_DIR/cg-handoff" ||
 	fail 'cg_handoff_run_file_entrypoint_missing'
 printf 'PASS: execution_receipt_contract\n'
 
