@@ -50,6 +50,7 @@ It exists for one reason: **mobile shell work gets messy fast**. Long outputs di
 - **Receipt v2 semantics:** completion records add stable semantic fields such as `workflow_exit_id`, class/stage, retry policy and diagnosis/fix/verify routing while preserving numeric layer exits.
 - **Two explicit input modes:** `cgrun --shell '<shell program>'` performs intentional shell parsing; `cgrun --exec command arg...` preserves argv boundaries. The run-file driver uses `--exec`.
 - **One run-file engine:** `cg-lane.sh run-file` delegates to `cg-run-file-driver-v1`; it no longer carries a second independent execution implementation.
+- **Cross-chat lane isolation:** `cg-handoff` passes an explicit lane/scope/host/route/secret tuple into `cg-run-file`; the driver verifies it against that lane's metadata without trusting the shared `current_lane` pointer. Missing or mismatched binding fails closed before payload execution. Legacy unbound calls require an explicitly isolated `CG_LANE_STATE_DIR`.
 - **Pre-execution lint gate:** `cg-handoff` runs production-default `cglint` before the artifact can reach `cg-run-file`.
 - **Noninteractive execution:** workflow payload stdin is bound to `/dev/null`, so accidental prompts receive EOF instead of hanging a run.
 - **Native Termux environment:** `cg-run-file` rebinds `PREFIX` and `TMPDIR` to the canonical Termux paths when the native Termux runtime is present, so noninteractive launchers cannot strand temporary workflow state under Linux-style `/tmp`.

@@ -43,6 +43,26 @@ PAYLOAD
 chmod 0755 "$TMP/payload.sh"
 run_clean() { env -i PATH="$BIN:$HOST_PATH" LD_PRELOAD="$HOST_LD_PRELOAD" HOME="$HOME_DIR" TMPDIR="$TMP" CG_LANE_STATE_DIR="$STATE" CG_OUTPUT_DIR="$OUT" bash "$BIN/cg-run-file" "$@"; }
 
+# Explicit lane remains alpha even when another chat selects beta globally.
+mkdir -p "$STATE/lanes/chat-beta"
+printf "chat-beta\n" > "$STATE/current_lane"
+printf "CG_LANE_SCOPE=pixel\nCG_LANE_HOST=pixel\nCG_LANE_ROUTE_CLASS=read-only\nCG_LANE_SECRET_CLASS=none\n" > "$STATE/lanes/chat-beta/meta.env"
+run_clean "$TMP/payload.sh" verify pixel pixel none sensitive chat-alpha > "$TMP_ROOT/explicit.out" 2>&1
+grep -Fq "chat_lane=chat-alpha" "$TMP_ROOT/explicit.out"
+[ -s "$STATE/lanes/chat-alpha/latest.run_id" ]
+[ ! -e "$STATE/lanes/chat-beta/latest.run_id" ]
+set +e
+run_clean "$TMP/payload.sh" verify pixel pixel read-only sensitive chat-alpha > "$TMP_ROOT/mismatch.out" 2>&1
+mismatch_rc=$?
+set -e
+[ "$mismatch_rc" -eq 70 ]
+grep -Fq "outcome=lane_binding_mismatch" "$TMP_ROOT/mismatch.out"
+[ ! -e "$STATE/lanes/chat-beta/latest.run_id" ]
+printf "%s\n" "PASS explicit_lane_metadata_mismatch_fail_closed"
+
+printf "chat-alpha\n" > "$STATE/current_lane"
+printf "%s\n" "PASS cross_chat_lane_isolation"
+
 stale_lock="$STATE/locks/lane-chat-alpha"
 mkdir -p "$stale_lock"; printf '%s\n' old-interrupted-run >"$stale_lock/run_id"; printf '%s\n' 999999 >"$stale_lock/pid"; printf '%s\n' '2026-08-09T16:29:57+02:00' >"$stale_lock/created_at"
 stale_out="$TMP_ROOT/stale.out"

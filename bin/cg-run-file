@@ -12,6 +12,14 @@ script="${1:-}"
 mode="${2:-verify}"
 mode="$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')"
 scope="${3:-}"
+host="${4:-}"
+route="${5:-}"
+secret="${6:-}"
+lane="${7:-}"
+if (( $# > 7 || ( $# > 3 && $# < 7 ) )); then
+	printf '%s\n' 'RESULT: CG_RUN_FILE_STOP reason=explicit_lane_binding_incomplete workflow_exit_code=70' >&2
+	exit 70
+fi
 
 unset CG_RUN_FILE_SOURCE_PATH CG_RUN_FILE_SOURCE_DIR
 source_script="$(readlink -f "$script" 2>/dev/null || true)"
@@ -27,7 +35,7 @@ if [ -z "$driver" ] || [ ! -s "$driver" ]; then
 fi
 
 delegate() {
-	bash "$driver" run "$1" "$mode" "$scope"
+	bash "$driver" run "$1" "$mode" "$scope" "$host" "$route" "$secret" "$lane"
 }
 
 first="$(head -n 1 "$script" 2>/dev/null || true)"
@@ -88,6 +96,6 @@ case "$first" in
 	delegate "$normalized"
 	;;
 *)
-	exec bash "$driver" run "$script" "$mode" "$scope"
+	exec bash "$driver" run "$script" "$mode" "$scope" "$host" "$route" "$secret" "$lane"
 	;;
 esac
