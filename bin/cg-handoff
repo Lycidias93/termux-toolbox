@@ -422,7 +422,7 @@ printf 'CG_HANDOFF_V1 source=%s staged=%s sha256=%s kind=%s lane=%s mode=%s scop
 
 rm -f -- "$PREFLIGHT_LOG" 2>/dev/null || true
 set +e
-cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class"
+cg-run-file "$dst" "$run_mode" "$scope" "$host" "$route_class" "$secret_class" "$lane"
 run_rc=$?
 set -e
 drain_pending_tty_input || true
