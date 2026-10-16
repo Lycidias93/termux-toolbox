@@ -41,11 +41,36 @@ payload_main() {
 
 run_main() {
 	require_init
-	local script="${1:-}" mode="${2:-verify}" scope_arg="${3:-}" lane scope host route secret run_id run_dir lock_name log_path rc task_label outcome result_marker
+	local script="${1:-}" mode="${2:-verify}" scope_arg="${3:-}" host_arg="${4:-}" route_arg="${5:-}" secret_arg="${6:-}" lane_arg="${7:-}" lane scope host route secret run_id run_dir lock_name log_path rc task_label outcome result_marker
 	command -v cgrun >/dev/null 2>&1 || { fail "cgrun_missing"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=cgrun_missing workflow_exit_id=WORKFLOW_DEPENDENCY_UNAVAILABLE workflow_exit_code=127\n'; return 127; }
 	mode="$(printf '%s' "$mode" | tr '[:upper:]' '[:lower:]')"; case "$mode" in verify|run) ;; *) fail "run_mode_invalid value=$mode"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=run_mode_invalid workflow_exit_id=WORKFLOW_USAGE_INVALID workflow_exit_code=71\n'; return 71 ;; esac
-	lane="$(current_lane || true)"; [ -n "$lane" ] || { fail "lane_unbound"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_unbound workflow_exit_id=WORKFLOW_PRECONDITION_REQUIRED workflow_exit_code=70\n'; return 70; }
-	scope="${scope_arg:-$(read_meta_value "$lane" CG_LANE_SCOPE 2>/dev/null || printf 'pixel')}"; host="$(read_meta_value "$lane" CG_LANE_HOST 2>/dev/null || printf 'pixel-local')"; route="$(read_meta_value "$lane" CG_LANE_ROUTE_CLASS 2>/dev/null || printf 'none')"; secret="$(read_meta_value "$lane" CG_LANE_SECRET_CLASS 2>/dev/null || printf 'none')"; script="$(readlink -f "$script" 2>/dev/null || printf '%s' "$script")"; task_label="$(safe_token "${script:-unknown}")"
+	# CG_RUN_FILE_EXPLICIT_LANE_BINDING_V1: resolve immutable caller identity, never the shared pointer.
+	if [ "$#" -gt 7 ]; then fail "run_arguments_extra"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=run_arguments_extra workflow_exit_code=70\n'; return 70; fi
+	if [ -n "$lane_arg" ]; then
+		lane="$(sanitize_id "$lane_arg" || true)"
+		[ -n "$lane" ] || { fail "lane_arg_invalid"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_arg_invalid workflow_exit_code=70\n'; return 70; }
+		[ -f "$(meta_path "$lane")" ] || { fail "lane_metadata_missing lane=$lane"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_metadata_missing workflow_exit_code=70\n'; return 70; }
+		scope="$(read_meta_value "$lane" CG_LANE_SCOPE || true)"
+		host="$(read_meta_value "$lane" CG_LANE_HOST || true)"
+		route="$(read_meta_value "$lane" CG_LANE_ROUTE_CLASS || true)"
+		secret="$(read_meta_value "$lane" CG_LANE_SECRET_CLASS || true)"
+		if [ -z "$scope" ] || [ -z "$host" ] || [ -z "$route" ] || [ -z "$secret" ] || [ "$scope" != "$scope_arg" ] || [ "$host" != "$host_arg" ] || [ "$route" != "$route_arg" ] || [ "$secret" != "$secret_arg" ]; then
+			fail "lane_binding_mismatch lane=$lane"
+			printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_binding_mismatch workflow_exit_code=70\n'
+			return 70
+		fi
+	else
+		# Legacy mode is permitted only in an explicitly isolated namespace.
+		if [ -z "${CG_LANE_STATE_DIR:-}" ] || [ "$#" -gt 3 ]; then
+			fail "unbound_shared_lane"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=unbound_shared_lane workflow_exit_code=70\n'; return 70
+		fi
+		lane="$(current_lane || true)"; [ -n "$lane" ] || { fail "lane_unbound"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_unbound workflow_exit_code=70\n'; return 70; }
+		scope="${scope_arg:-$(read_meta_value "$lane" CG_LANE_SCOPE 2>/dev/null || printf 'pixel')}"
+		host="$(read_meta_value "$lane" CG_LANE_HOST 2>/dev/null || printf 'pixel-local')"
+		route="$(read_meta_value "$lane" CG_LANE_ROUTE_CLASS 2>/dev/null || printf 'none')"
+		secret="$(read_meta_value "$lane" CG_LANE_SECRET_CLASS 2>/dev/null || printf 'none')"
+	fi
+	script="$(readlink -f "$script" 2>/dev/null || printf '%s' "$script")"; task_label="$(safe_token "${script:-unknown}")"
 	run_id="$(date +%Y%m%d_%H%M%S)_${lane}_${mode}_${scope}_$$_$RANDOM"; run_dir="$RUNS_DIR/$run_id"; lock_name="lane-$lane"; mkdir -p "$run_dir"
 	{ printf 'CG_LANE_VERSION=%s\n' 'cg-multilane-v1.3'; printf 'CG_RUN_FILE_DRIVER_VERSION=%s\n' "$VERSION"; printf 'CG_LANE_ID=%s\nCG_RUN_ID=%s\nCG_RUN_MODE=%s\nCG_RUN_SCOPE=%s\nCG_RUN_HOST=%s\nCG_RUN_ROUTE_CLASS=%s\nCG_RUN_SECRET_CLASS=%s\nCG_RUN_SCRIPT=%s\nCG_RUN_TASK=%s\nCG_RUN_STARTED_AT=%s\n' "$lane" "$run_id" "$mode" "$scope" "$host" "$route" "$secret" "$script" "$task_label" "$(date -Is)"; } >"$run_dir/meta.env"
 	rc=0
@@ -63,5 +88,5 @@ run_main() {
 	return "$rc"
 }
 
-main() { local cmd="${1:-}"; shift || true; case "$cmd" in run) run_main "$@" ;; --payload) payload_main "$@" ;; -h|--help|help|'') printf '%s\n' 'Usage: cg-run-file-driver-v1 run <script> [mode] [scope]' ;; *) fail "unknown_command=$cmd"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=unknown_command workflow_exit_id=WORKFLOW_USAGE_INVALID workflow_exit_code=64\n'; return 64 ;; esac; }
+main() { local cmd="${1:-}"; shift || true; case "$cmd" in run) run_main "$@" ;; --payload) payload_main "$@" ;; -h|--help|help|'') printf '%s\n' 'Usage: cg-run-file-driver-v1 run <script> [mode] [scope] [host] [route] [secret] [lane]' ;; *) fail "unknown_command=$cmd"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=unknown_command workflow_exit_id=WORKFLOW_USAGE_INVALID workflow_exit_code=64\n'; return 64 ;; esac; }
 main "$@"
