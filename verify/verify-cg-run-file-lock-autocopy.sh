@@ -51,6 +51,15 @@ run_clean "$TMP/payload.sh" verify pixel pixel none sensitive chat-alpha > "$TMP
 grep -Fq "chat_lane=chat-alpha" "$TMP_ROOT/explicit.out"
 [ -s "$STATE/lanes/chat-alpha/latest.run_id" ]
 [ ! -e "$STATE/lanes/chat-beta/latest.run_id" ]
+set +e
+run_clean "$TMP/payload.sh" verify pixel pixel read-only sensitive chat-alpha > "$TMP_ROOT/mismatch.out" 2>&1
+mismatch_rc=$?
+set -e
+[ "$mismatch_rc" -eq 70 ]
+grep -Fq "outcome=lane_binding_mismatch" "$TMP_ROOT/mismatch.out"
+[ ! -e "$STATE/lanes/chat-beta/latest.run_id" ]
+printf "%s\n" "PASS explicit_lane_metadata_mismatch_fail_closed"
+
 printf "chat-alpha\n" > "$STATE/current_lane"
 printf "%s\n" "PASS cross_chat_lane_isolation"
 
