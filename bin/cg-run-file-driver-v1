@@ -61,7 +61,7 @@ run_main() {
 		fi
 	else
 		# Legacy mode is permitted only in an explicitly isolated namespace.
-		if [ -z "${CG_LANE_STATE_DIR:-}" ] || [ "$#" -gt 3 ]; then
+		if [ -z "${CG_LANE_STATE_DIR:-}" ] || [ -n "$host_arg" ] || [ -n "$route_arg" ] || [ -n "$secret_arg" ]; then
 			fail "unbound_shared_lane"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=unbound_shared_lane workflow_exit_code=70\n'; return 70
 		fi
 		lane="$(current_lane || true)"; [ -n "$lane" ] || { fail "lane_unbound"; printf 'RESULT: CG_RUN_FILE_DRIVER_FAILED outcome=lane_unbound workflow_exit_code=70\n'; return 70; }
